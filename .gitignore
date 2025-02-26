@@ -1,2 +1,6 @@
 *.o
 .idea
+vgcore.*
+src/server-side/servidor-mq
+src/server-side/claves
+src/client-side/app-cliente
