@@ -118,7 +118,7 @@ void insert_data_TEST(sqlite3 *db){
                 exit(-4);
             }
             else{
-                printf("DUPLICADA LA FK BOBO\n");
+                printf("DUPLICADA LA PK BOBO\n");
             }
         }
     }
