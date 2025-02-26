@@ -1,3 +1,4 @@
-//
-// Created by hector on 24/02/25.
-//
+#include<stdio.h>
+#include<string.h>
+#include "../claves.h"
+
