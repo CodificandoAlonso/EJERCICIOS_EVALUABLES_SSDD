@@ -11,10 +11,12 @@ int main (int argc, char **argv)
     struct Coord v3;
     v3.x = 10;
     v3.y = 5;
+    /*
     int err = set_value(key, v1, 3, v2, v3);
     if (err == -1) {
         printf("Error al insertar la tupla\n");
     }
+    */
     return 0;
 
 }
