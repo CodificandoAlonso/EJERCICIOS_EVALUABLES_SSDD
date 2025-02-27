@@ -7,12 +7,13 @@
 #include<sqlite3.h>
 #include<errno.h>
 #include <string.h>
-
+#include<unistd.h>
 
 #define MAX_THREADS 10
 
 
 //Creación de hilos, arrays de hilos y contador de hilos ocupados
+pthread_t thread_pool[MAX_THREADS];
 int free_threads_array[MAX_THREADS];
 int workload = 0;
 
@@ -62,13 +63,16 @@ void process_request(parameters_to_pass* parameters)
     request local_request = *parameters->this_request;
     int local_id = parameters->identifier;
     free_mutex_copy_params_cond = 1;
+    free_threads_array[local_id] = 1;
+    printf("Hilo %d ocupado\n", local_id);
     pthread_mutex_unlock(&mutex_copy_params);
-
+    sleep(10);
     pthread_mutex_lock(&mutex_threads);
     free_threads_array[local_id] = 0;
     workload--;
-    printf("Acabado el trabajo\n");
+    printf("Acabado el trabajo el hilo %d\n", local_id);
     pthread_mutex_unlock(&mutex_threads);
+    pthread_exit(0);
 }
 
 
@@ -121,10 +125,7 @@ void insert_data_TEST(sqlite3* db)
             fprintf(stderr, "ERROR insertando en TABLA\n");
             exit(-4);
         }
-        else
-        {
-            printf("DUPLICADA LA FK BOBO\n");
-        }
+        printf("DUPLICADA LA PK BOBO\n");
     }
 
     //insertar value2
@@ -198,6 +199,8 @@ int main(int argc, char* argv[])
     }
     printf("Todo bien abriendo la cola del servidor con fd: %d\n", server_queue);
 
+
+
     request new_request;
     //Gestion de la concurrencia con las peticiones
     while (1)
@@ -206,20 +209,39 @@ int main(int argc, char* argv[])
         if (message >= 0)
         {
             printf("Se ha recibido un mensaje con id %d\n", new_request.key);
+            pthread_mutex_lock(&mutex_threads);
+            while(workload ==MAX_THREADS)
+            {
+                pthread_cond_wait(&cond_wait_threads, &mutex_threads);
+            }
+            pthread_mutex_unlock(&mutex_threads);
+            for(int i =0; i< MAX_THREADS; i++)
+            {
+                if(free_threads_array[i] == 0){
+                    parameters_to_pass params;
+                    params.identifier = i;
+                    params.this_request = &new_request;
+                    pthread_create(&thread_pool[i],NULL,(void *)process_request,&params);
+                    break;
+                }
+
+            }
+            pthread_mutex_lock(&mutex_copy_params);
+            while(free_mutex_copy_params_cond == 0)
+                pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);
+            free_mutex_copy_params_cond = 0;
+            pthread_mutex_unlock(&mutex_copy_params);
+
         }
-        /*
         else {
-           printf("error al recibir, tonto\n");
+            printf("error al recibir, tonto\n");
             //DE MOMENTO SI ES ERROR EN COMUNICACION ES ERROR -2
             exit(-2);
         }
-
-
-        pthread_mutex_lock(&mutex_copy_params);
-        while(free_mutex_copy_params_cond == 0)
-            pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);
-        free_mutex_copy_params_cond = 0;
-        pthread_mutex_unlock(&mutex_copy_params);
-        */
+        for(int i =0; i<MAX_THREADS; i++)
+        {
+            pthread_join(thread_pool[i], NULL);
+        }
     }
+    return 0;
 }
