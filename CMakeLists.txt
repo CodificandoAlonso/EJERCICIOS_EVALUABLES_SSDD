@@ -30,7 +30,7 @@ target_link_libraries(server
 #Cliente
 add_executable(cliente
         ${CMAKE_CURRENT_SOURCE_DIR}/src/client-side/app-cliente.c
-        src/proxy-mq.c  # ajusta si proxy-mq.c está en otro lado
+        src/proxy-mq.c
 )
 
 #enlazar librerias con el cliente
