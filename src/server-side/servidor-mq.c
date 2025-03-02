@@ -256,7 +256,7 @@ int main(int argc, char* argv[])
         }
         pthread_mutex_unlock(&mutex_threads);
 
-
+        //Veo si hay mensajes
         ssize_t message = mq_receive(server_queue, (char*)&new_request, sizeof(request), 0);
         if (message >= 0)
         {
@@ -294,6 +294,7 @@ int main(int argc, char* argv[])
                 pthread_mutex_unlock(&mutex_threads);
             }
         }
+        //ERROR RECEPCION MENSAJE
         else {
             //si se me lia el mensaje
             printf("error al recibir, tonto\n");
