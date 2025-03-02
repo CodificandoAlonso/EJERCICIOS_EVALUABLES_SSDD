@@ -42,14 +42,12 @@ void pad_array()
 }
 
 
-//LA COLA ACABA CON 9453
-
+//CREACION DE LAS ESTRUCTURAS NECESARIAS
 typedef struct value_2
 {
     int num_elem;
     double* array_doubles;
 } value_2;
-
 
 typedef struct request
 {
@@ -205,7 +203,7 @@ int main(int argc, char* argv[])
 
     struct mq_attr attr;
     attr.mq_flags = 0;
-    attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
+    attr.mq_maxmsg = 50; // Máximo 10 mensajes en la cola
     attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
     attr.mq_curmsgs = 0;
 
