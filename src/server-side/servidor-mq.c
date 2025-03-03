@@ -43,22 +43,35 @@ void pad_array()
 
 
 //CREACION DE LAS ESTRUCTURAS NECESARIAS
+/*
 typedef struct value_2
 {
     int num_elem;
     double* array_doubles;
 } value_2;
+*/
 
-typedef struct request
-{
+
+typedef struct request {
     int type;
     int key;
-    char* value_1;
-    value_2 value_2;
+    char value_1[256];
+    int N_value_2;
+    double value_2[32];
     struct Coord value_3;
 } request;
 
-typedef struct parameters_to_pass
+typedef struct params_functions
+{
+    int type;
+    int key;
+    char *value_1;
+    int N_value_2;
+    double *value_2;
+    struct Coord value_3;
+}params_functions;
+
+typedef struct parameters_to_pass_threads
 {
     request* this_request;
     int identifier;
@@ -82,7 +95,31 @@ void process_request(parameters_to_pass* parameters)
     printf("Hilo %d ocupado\n", local_id);
     pthread_cond_signal(&cond_wait_cpy);
     pthread_mutex_unlock(&mutex_copy_params);
-    sleep(10);
+    params_functions new_operation;
+    new_operation.type = local_request.type;
+    new_operation.key = local_request.key;
+    new_operation.value_1 = malloc(sizeof(local_request.value_1)* sizeof(char));
+    new_operation.value_1 = local_request.value_1;
+    new_operation.N_value_2 = local_request.N_value_2;
+    new_operation.value_2 = malloc(sizeof(double) * local_request.N_value_2);
+
+    switch (local_request.type){
+        case 1: //INSERT
+            int insert = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+            if (insert == -1)
+            {
+                printf("ERROR INSERTANDO ME HA DEVUELTO FALIO\n");
+            }
+        case 2:  //DELETE
+
+        case 3:  //DELETE_KEY
+
+        case 4:  //MODIFY
+
+        case 5:  //GET_VALUE
+
+            ;
+    }
 
     printf("Acabado el trabajo el hilo %d\n", local_id);
     pthread_exit(0);
@@ -203,7 +240,7 @@ int main(int argc, char* argv[])
 
     struct mq_attr attr;
     attr.mq_flags = 0;
-    attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
+    attr.mq_maxmsg = 50; // Máximo 50 mensajes en la cola
     attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
     attr.mq_curmsgs = 0;
 
@@ -257,7 +294,6 @@ int main(int argc, char* argv[])
             }
         }
         pthread_mutex_unlock(&mutex_threads);
-
         //Veo si hay mensajes
         ssize_t message = mq_receive(server_queue, (char*)&new_request, sizeof(request), 0);
         if (message >= 0)

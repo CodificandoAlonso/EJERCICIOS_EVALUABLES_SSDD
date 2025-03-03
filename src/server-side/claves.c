@@ -2,6 +2,7 @@
 #include<stdio.h>
 #include<sqlite3.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /**
@@ -65,6 +66,9 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
     }
     char *error_message = NULL;
     char insert[256];
+    char local_value1[256];
+    memcpy(local_value1, value1, sizeof(value1));
+    printf("Esto vale value1 %s\n", local_value1);
 
     //Insertar los primeros parametros en data
     sprintf(insert,
