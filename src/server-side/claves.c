@@ -1,9 +1,7 @@
 #include "../claves.h"
 #include<stdio.h>
-
-
-
-
+#include<sqlite3.h>
+#include <stdlib.h>
 
 
 /**
@@ -14,7 +12,30 @@
  * @retval 0 en caso de exito.
  * @retval -1 en caso de error.
  */
-int destroy(void);
+int destroy() {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+    char *message_error = NULL;
+    char *delete_table =
+            "DELETE * from data";
+    if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "ERROR BORRANDO TABLA 1\n");
+        return -1;
+    }
+    message_error = NULL;
+    delete_table =
+            "DELETE * from value2_all";
+    if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "ERROR BORRANDO TABLA 2\n");
+        return -1;
+    }
+    return 0;
+}
+
 
 /**
  * @brief Este servicio inserta el elemento <key, value1, value2, value3>.
@@ -35,7 +56,55 @@ int destroy(void);
  * @retval 0 si se insertó con éxito.
  * @retval -1 en caso de error.
  */
-int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3);
+int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3) {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+    char *error_message = NULL;
+    char insert[256];
+
+    //Insertar los primeros parametros en data
+    sprintf(insert,
+            "INSERT into data(data_key, value1,x,y) "
+            " VALUES(%d, '%s', %d ,%d)", key, value1, value3.x, value3.y);
+    printf("Esto vale insert: %s\n", insert);
+    int test;
+    if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK) {
+        if (test != SQLITE_CONSTRAINT) {
+            fprintf(stderr, "ERROR insertando en TABLA\n");
+            exit(-4);
+        }
+        fprintf(stderr,"DUPLICADA LA PK BOBO\n");
+        return -1;
+    }
+    if (N_value2 >32) {
+        fprintf(stderr, "Too many arguments in value2\n");
+        return -1;
+    }
+    char primary_key[20];
+
+    for (int i = 0; i < N_value2; i++) {
+        sprintf(primary_key, "%d%d", 3, i);
+        sprintf(insert,
+                "INSERT into value2_all(id,data_key,value) "
+                " VALUES(%s, %d, %f)", primary_key, key, V_value2[i]);
+        printf("Esto vale insert: %s\n", insert);
+        if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK) {
+            if (test != SQLITE_CONSTRAINT) {
+                fprintf(stderr, "ERROR insertando en TABLA\n");
+                exit(-4);
+            }
+            fprintf(stderr,"DUPLICADA LA PK BOBO\n");
+            return -1;
+        }
+    }
+
+
+    return 0;
+}
 
 /**
  * @brief Este servicio permite obtener los valores asociados a la clave key.
@@ -56,7 +125,17 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
  * @retval 0 en caso de éxito.
  * @retval -1 en caso de error.
  */
-int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3);
+int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3) {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+    return 0;
+
+    //HACER UNA QUERY
+}
 
 /**
  * @brief Este servicio permite modificar los valores asociados a la clave key.
@@ -74,7 +153,18 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
  * @retval 0 si se modificó con éxito.
  * @retval -1 en caso de error.
  */
-int modify_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3);
+int modify_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3) {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+    return 0;
+
+    //NO ME ACUERDO DE COMO SE HACE EN SQL
+
+}
 
 /**
  * @brief Este servicio permite borrar el elemento cuya clave es key.
@@ -86,7 +176,27 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2, struct C
  * @retval 0 en caso de éxito.
  * @retval -1 en caso de error.
  */
-int delete_key(int key);
+int delete_key(int key) {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+
+    //EL FAVORITO DE NAVARRO
+
+    char *message_error = NULL;
+    char delete_key[256];
+    sprintf(delete_key,
+            "DELETE * from data"
+            "WHERE data_key = %d", key);
+    if (sqlite3_exec(database, delete_key, NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "ERROR DELETING LINE FROM TABLE \n");
+        return -1;
+    }
+    return 0;
+}
 
 /**
  * @brief Este servicio permite determinar si existe un elemento con clave key.
@@ -99,7 +209,12 @@ int delete_key(int key);
  * @retval 0 en caso de que no exista.
  * @retval -1 en caso de error.
  */
-int exist(int key);
-
-
-
+int exist(int key) {
+    sqlite3 *database;
+    int create_database = sqlite3_open("database.db", &database);
+    if (create_database != SQLITE_OK) {
+        fprintf(stderr, "Error opening the database\n");
+        exit(-1);
+    }
+    return 0;
+}

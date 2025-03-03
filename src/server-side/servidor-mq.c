@@ -203,7 +203,7 @@ int main(int argc, char* argv[])
 
     struct mq_attr attr;
     attr.mq_flags = 0;
-    attr.mq_maxmsg = 50; // Máximo 10 mensajes en la cola
+    attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
     attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
     attr.mq_curmsgs = 0;
 
@@ -217,9 +217,10 @@ int main(int argc, char* argv[])
 
 
     //Inicializo y abro la cola del servidor
+    //Mirar esto O_NONBLOCK
     mqd_t server_queue;
     char nombre[20] = "/servidor_queue_9453";
-    server_queue = mq_open(nombre, O_CREAT | O_RDONLY, 0700, &attr);
+    server_queue = mq_open(nombre, O_CREAT | O_RDONLY | O_NONBLOCK, 0700, &attr);
     if (server_queue == -1)
     {
         mq_close(server_queue);
@@ -236,13 +237,14 @@ int main(int argc, char* argv[])
     //Gestion de la concurrencia con las peticiones
     while (1)
     {
+        /*
         printf("PARA SALIR PON 'exit' mamawebo\n");
         fgets(buffer,sizeof(buffer),stdin);
         if (strcmp(buffer, "exit"))
         {
             break;
         }
-
+        */
         //Esto intenta realizar un join no bloqueante
         pthread_mutex_lock(&mutex_threads);
         for (int i = 0; i < MAX_THREADS; i++) {
@@ -295,9 +297,12 @@ int main(int argc, char* argv[])
             }
         }
         //ERROR RECEPCION MENSAJE
+        else if((errno = EAGAIN)) {
+
+        }
         else {
             //si se me lia el mensaje
-            printf("error al recibir, tonto\n");
+            printf("Error al recibir mensaje: %s\n", strerror(errno));
             //DE MOMENTO SI ES ERROR EN COMUNICACION ES ERROR -2
             exit(-2);
         }
