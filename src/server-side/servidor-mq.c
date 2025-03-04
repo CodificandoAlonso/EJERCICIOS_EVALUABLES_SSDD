@@ -96,13 +96,14 @@ void process_request(parameters_to_pass* parameters)
     pthread_cond_signal(&cond_wait_cpy);
     pthread_mutex_unlock(&mutex_copy_params);
     params_functions new_operation;
+    /*
     new_operation.type = local_request.type;
     new_operation.key = local_request.key;
     new_operation.value_1 = malloc(sizeof(local_request.value_1)* sizeof(char));
     new_operation.value_1 = local_request.value_1;
     new_operation.N_value_2 = local_request.N_value_2;
     new_operation.value_2 = malloc(sizeof(double) * local_request.N_value_2);
-
+    */
     switch (local_request.type){
         case 1: //INSERT
             int insert = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
@@ -143,6 +144,12 @@ void process_request(parameters_to_pass* parameters)
 void create_table(sqlite3* db)
 {
     char* message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        exit(-3);
+    }
+
     char* new_table =
         "CREATE TABLE IF NOT EXISTS data("
         " data_key INTEGER PRIMARY KEY,"
@@ -155,65 +162,26 @@ void create_table(sqlite3* db)
         fprintf(stderr, "ERROR CREANDO TABLA 1\n");
         exit(-4);
     }
+    printf("EXITO CREANDO TABLA 1\n");
     message_error = NULL;
     new_table =
         "CREATE TABLE IF NOT EXISTS value2_all("
         " id TEXT PRIMARY KEY,"
         " data_key INTEGER,"
         " value REAL,"
-        "CONSTRAINT fk_origin FOREIGN KEY(data_key) REFERENCES data(pk) ON DELETE CASCADE ON UPDATE CASCADE"
+        "CONSTRAINT fk_origin FOREIGN KEY(data_key) REFERENCES data(data_key) ON DELETE CASCADE ON UPDATE CASCADE"
         ");";
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR CREANDO TABLA 2\n");
         exit(-4);
     }
+    printf("EXITO CREANDO TABLA 2\n");
 }
 
 
 
-/**@brief PRUEBA. HABRA QUE MIGRARLA A CLAVES.C
- */
-void insert_data_TEST(sqlite3* db)
-{
-    char* error_message = NULL;
-    char insert[256];
 
-    //Insertar los primeros parametros en data
-    sprintf(insert,
-            "INSERT into data(data_key, value1,x,y) "
-            " VALUES(%d, '%s', %d ,%d)", 3, "SEXO", 5, 5);
-    printf("Esto vale insert: %s\n", insert);
-    int test;
-    if ((test = sqlite3_exec(db, insert, NULL, NULL, &error_message)) != SQLITE_OK)
-    {
-        if (test != SQLITE_CONSTRAINT)
-        {
-            fprintf(stderr, "ERROR insertando en TABLA\n");
-            exit(-4);
-        }
-        printf("DUPLICADA LA PK BOBO\n");
-    }
-    double var2[3] = {3.44, 4.3, 5.5};
-    char primary_key[20];
-    for (int i = 0; i < 3; i++)
-    {
-        sprintf(primary_key, "%d%d", 3, i);
-        sprintf(insert,
-                "INSERT into value2_all(id,data_key,value) "
-                " VALUES(%s, %d, %f)", primary_key, 3, var2[i]);
-        printf("Esto vale insert: %s\n", insert);
-        if ((test = sqlite3_exec(db, insert, NULL, NULL, &error_message)) != SQLITE_OK)
-        {
-            if (test != SQLITE_CONSTRAINT)
-            {
-                fprintf(stderr, "ERROR insertando en TABLA\n");
-                exit(-4);
-            }
-            printf("DUPLICADA LA PK BOBO\n");
-        }
-    }
-}
 
 
 
@@ -230,17 +198,18 @@ int main(int argc, char* argv[])
     }
     printf("Exito abriendo la base de datos\n");
 
-    //Creo la tabla principal "data"
+    //Creo la tabla principal "data" y la subtabla "value2_all"
     create_table(database);
-    insert_data_TEST(database);
+    sqlite3_close(database);
 
-
+    //Leno de 0s el array de threads ocupados
     pad_array();
 
 
-    struct mq_attr attr;
+
+    struct mq_attr attr = {0};
     attr.mq_flags = 0;
-    attr.mq_maxmsg = 50; // Máximo 50 mensajes en la cola
+    attr.mq_maxmsg = 20; // Máximo 10 mensajes en la cola
     attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
     attr.mq_curmsgs = 0;
 
@@ -254,10 +223,9 @@ int main(int argc, char* argv[])
 
 
     //Inicializo y abro la cola del servidor
-    //Mirar esto O_NONBLOCK
     mqd_t server_queue;
-    char nombre[20] = "/servidor_queue_9453";
-    server_queue = mq_open(nombre, O_CREAT | O_RDONLY | O_NONBLOCK, 0700, &attr);
+    char *nombre = "/servidor_queue_9453";
+    server_queue = mq_open(nombre, O_CREAT | O_RDWR | O_NONBLOCK, 0660, &attr);
     if (server_queue == -1)
     {
         mq_close(server_queue);
@@ -268,9 +236,8 @@ int main(int argc, char* argv[])
     printf("Todo bien abriendo la cola del servidor con fd: %d\n", server_queue);
 
 
-
+    //Me creo la estructura request para manejar las peticiones
     request new_request;
-    char buffer[10];
     //Gestion de la concurrencia con las peticiones
     while (1)
     {
@@ -333,8 +300,8 @@ int main(int argc, char* argv[])
             }
         }
         //ERROR RECEPCION MENSAJE
-        else if((errno = EAGAIN)) {
-
+        else if(errno == EAGAIN) {
+        usleep(1000);
         }
         else {
             //si se me lia el mensaje

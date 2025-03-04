@@ -22,14 +22,14 @@ int destroy() {
     }
     char *message_error = NULL;
     char *delete_table =
-            "DELETE * from data";
+            "DELETE from data";
     if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR BORRANDO TABLA 1\n");
         return -1;
     }
     message_error = NULL;
     delete_table =
-            "DELETE * from value2_all";
+            "DELETE from value2_all";
     if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR BORRANDO TABLA 2\n");
         return -1;
@@ -65,6 +65,7 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
         exit(-1);
     }
     char *error_message = NULL;
+    value1[strcspn(value1, "\r\n")] = 0;
     char insert[256];
     char local_value1[256];
     memcpy(local_value1, value1, sizeof(value1));
@@ -73,7 +74,7 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
     //Insertar los primeros parametros en data
     sprintf(insert,
             "INSERT into data(data_key, value1,x,y) "
-            " VALUES(%d, '%s', %d ,%d)", key, value1, value3.x, value3.y);
+            " VALUES(%d, '%s', %d ,%d);", key, value1, value3.x, value3.y);
     printf("Esto vale insert: %s\n", insert);
     int test;
     if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK) {
@@ -91,10 +92,10 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
     char primary_key[20];
 
     for (int i = 0; i < N_value2; i++) {
-        sprintf(primary_key, "%d%d", 3, i);
+        sprintf(primary_key, "%d%d", key, i);
         sprintf(insert,
                 "INSERT into value2_all(id,data_key,value) "
-                " VALUES(%s, %d, %f)", primary_key, key, V_value2[i]);
+                " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
         printf("Esto vale insert: %s\n", insert);
         if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK) {
             if (test != SQLITE_CONSTRAINT) {
@@ -106,7 +107,7 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
         }
     }
 
-
+    sqlite3_close(database);
     return 0;
 }
 
