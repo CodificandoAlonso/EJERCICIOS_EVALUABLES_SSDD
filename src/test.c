@@ -126,7 +126,7 @@ int main(int argc, char** argv)
     free(newval.array_doubles);
     */
 
-    request nueva_peticion;
+    request nueva_peticion = {0};
     init_request(&nueva_peticion);
     char buffer[256];
     while (1)
@@ -231,6 +231,23 @@ int main(int argc, char** argv)
         else if (strcmp(buffer, "DELETE_KEY\n") == 0)
         {
             //DELETE_KEY == 3
+            nueva_peticion.type = 3;
+            printf("Dime que key quieres eliminar:\n");
+            fgets(buffer, sizeof(buffer), stdin);
+            int key;
+            if ((key = atoi(buffer)) == 0)
+            {
+                printf("Era un entero tonto. Mi programa se muere\n");
+                return -1;
+            }
+            nueva_peticion.key = key;
+            if (mq_send(server_queue, (char*)&nueva_peticion, sizeof(nueva_peticion), 1) == -1)
+            {
+                perror("Error enviando mensaje a la cola");
+                return -1;
+            }
+            printf("Enviado mensaje uuuu\n");
+
         }
         else if (strcmp(buffer, "MODIFY_VALUE\n") == 0)
         {

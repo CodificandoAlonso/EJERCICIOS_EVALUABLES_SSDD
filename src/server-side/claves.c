@@ -194,8 +194,9 @@ int delete_key(int key) {
     char *message_error = NULL;
     char delete_key[256];
     sprintf(delete_key,
-            "DELETE * from data"
-            "WHERE data_key = %d", key);
+            "DELETE from data "
+            "WHERE data_key == %d;", key);
+    printf("Esto vale delete_key %s\n", delete_key);
     if (sqlite3_exec(database, delete_key, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR DELETING LINE FROM TABLE \n");
         return -1;

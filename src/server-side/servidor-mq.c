@@ -85,7 +85,7 @@ typedef struct parameters_to_pass_threads
  *local de los datos se encargará de gestionar las distintas llamadas de claves.c para realizar las gestiones
  *en la base de datos correspondiente
  */
-void process_request(parameters_to_pass* parameters)
+int process_request(parameters_to_pass* parameters)
 {
     pthread_mutex_lock(&mutex_copy_params);
     request local_request = *parameters->this_request;
@@ -110,11 +110,19 @@ void process_request(parameters_to_pass* parameters)
             if (insert == -1)
             {
                 printf("ERROR INSERTANDO ME HA DEVUELTO FALIO\n");
+                return -1;
             }
+            return 0;
         case 2:  //DELETE
 
         case 3:  //DELETE_KEY
-
+        int deletekey = delete_key(local_request.key);
+        if (deletekey == -1)
+        {
+            printf("ERROR ELIMINANDO ME HA DEVUELTO FALIO\n");
+            return -1;
+        }
+        return 0;
         case 4:  //MODIFY
 
         case 5:  //GET_VALUE
@@ -169,8 +177,11 @@ void create_table(sqlite3* db)
         " id TEXT PRIMARY KEY,"
         " data_key INTEGER,"
         " value REAL,"
-        "CONSTRAINT fk_origin FOREIGN KEY(data_key) REFERENCES data(data_key) ON DELETE CASCADE ON UPDATE CASCADE"
+        "CONSTRAINT fk_origin FOREIGN KEY(data_key) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
+        "ON UPDATE CASCADE"
         ");";
+
+    printf("%s\n", new_table);
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR CREANDO TABLA 2\n");
@@ -209,7 +220,7 @@ int main(int argc, char* argv[])
 
     struct mq_attr attr = {0};
     attr.mq_flags = 0;
-    attr.mq_maxmsg = 20; // Máximo 10 mensajes en la cola
+    attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
     attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
     attr.mq_curmsgs = 0;
 
