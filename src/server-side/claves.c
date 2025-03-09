@@ -20,20 +20,22 @@ int destroy() {
         fprintf(stderr, "Error opening the database\n");
         exit(-1);
     }
-    char *message_error = NULL;
+
+    char* message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        exit(-3);
+    }
+
+    message_error = NULL;
     char *delete_table =
             "DELETE from data";
     if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR BORRANDO TABLA 1\n");
         return -1;
     }
-    message_error = NULL;
-    delete_table =
-            "DELETE from value2_all";
-    if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
-        fprintf(stderr, "ERROR BORRANDO TABLA 2\n");
-        return -1;
-    }
+
     return 0;
 }
 
@@ -94,7 +96,7 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
     for (int i = 0; i < N_value2; i++) {
         sprintf(primary_key, "%d%d", key, i);
         sprintf(insert,
-                "INSERT into value2_all(id,data_key,value) "
+                "INSERT into value2_all(id, data_key_fk, value) "
                 " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
         printf("Esto vale insert: %s\n", insert);
         if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK) {
@@ -189,9 +191,15 @@ int delete_key(int key) {
         exit(-1);
     }
 
-    //EL FAVORITO DE NAVARRO
+    char* message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        exit(-3);
+    }
 
-    char *message_error = NULL;
+    //EL FAVORITO DE NAVARRO
+    message_error = NULL;
     char delete_key[256];
     sprintf(delete_key,
             "DELETE from data "

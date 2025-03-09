@@ -114,7 +114,13 @@ int process_request(parameters_to_pass* parameters)
             }
             return 0;
         case 2:  //DELETE
-
+            int delete = destroy();
+            if (delete == -1)
+            {
+                printf("ERROR ELIMINANDO ME HA DEVUELTO FALIO\n");
+                return -1;
+            }
+            return 0;
         case 3:  //DELETE_KEY
         int deletekey = delete_key(local_request.key);
         if (deletekey == -1)
@@ -175,11 +181,10 @@ void create_table(sqlite3* db)
     new_table =
         "CREATE TABLE IF NOT EXISTS value2_all("
         " id TEXT PRIMARY KEY,"
-        " data_key INTEGER,"
+        " data_key_fk INTEGER,"
         " value REAL,"
-        "CONSTRAINT fk_origin FOREIGN KEY(data_key) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
-        "ON UPDATE CASCADE"
-        ");";
+        "CONSTRAINT fk_origin FOREIGN KEY(data_key_fk) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
+        "ON UPDATE CASCADE);";
 
     printf("%s\n", new_table);
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)

@@ -226,7 +226,14 @@ int main(int argc, char** argv)
         }
         else if (strcmp(buffer, "DELETE\n") == 0)
         {
-            //DELETE == 2
+            nueva_peticion.type = 2;
+            if (mq_send(server_queue, (char*)&nueva_peticion, sizeof(nueva_peticion), 1) == -1)
+            {
+                perror("Error enviando mensaje a la cola");
+                return -1;
+            }
+            printf("Enviado mensaje uuuu\n");
+
         }
         else if (strcmp(buffer, "DELETE_KEY\n") == 0)
         {
