@@ -18,27 +18,22 @@ int destroy() {
     int create_database = sqlite3_open("database.db", &database);
     if (create_database != SQLITE_OK) {
         fprintf(stderr, "Error opening the database\n");
-        exit(-1);
-    }
-
-    char* message_error = NULL;
-    //Habilitar las foreign keys para mejor manejo de la base de datos
-    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
-        fprintf(stderr, "Error with the fk definition %s", message_error);
-        exit(-3);
-    }
-
-    message_error = NULL;
-    char *delete_table =
-            "DELETE from data";
-    if (sqlite3_exec(database, delete_table, NULL, NULL, &message_error) != SQLITE_OK) {
-        fprintf(stderr, "ERROR BORRANDO TABLA 1\n");
         return -1;
     }
 
+    char *delete_data_table = "DELETE from data";
+    char *delete_value2_table = "DELETE from value2_all";
+
+    if (sqlite3_exec(database, delete_data_table, NULL, NULL, NULL) != SQLITE_OK ||
+        sqlite3_exec(database, delete_value2_table, NULL, NULL, NULL) != SQLITE_OK) {
+        fprintf(stderr, "ERROR borrando las tablas\n");
+        sqlite3_close(database);
+        return -1;
+        }
+
+    sqlite3_close(database);
     return 0;
 }
-
 
 /**
  * @brief Este servicio inserta el elemento <key, value1, value2, value3>.
@@ -132,16 +127,52 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
  * @retval 0 en caso de éxito.
  * @retval -1 en caso de error.
  */
+
+
 int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3) {
     sqlite3 *database;
+    sqlite3_stmt *stmt;
     int create_database = sqlite3_open("database.db", &database);
     if (create_database != SQLITE_OK) {
         fprintf(stderr, "Error opening the database\n");
-        exit(-1);
+        return -1;
     }
-    return 0;
 
-    //HACER UNA QUERY
+    char query[] = "SELECT value1, x, y FROM data WHERE data_key = ?";
+    if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_bind_int(stmt, 1, key);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        strcpy(value1, (const char*)sqlite3_column_text(stmt, 0));
+        value3->x = sqlite3_column_int(stmt, 1);
+        value3->y = sqlite3_column_int(stmt, 2);
+    } else {
+        sqlite3_finalize(stmt);
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_finalize(stmt);
+
+    query[0] = '\0';
+    strcpy(query, "SELECT value FROM value2_all WHERE data_key_fk = ? ORDER BY id");
+    if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_bind_int(stmt, 1, key);
+
+    *N_value2 = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW && *N_value2 < 32) {
+        V_value2[*N_value2] = sqlite3_column_double(stmt, 0);
+        (*N_value2)++;
+    }
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(database);
+    return 0;
 }
 
 /**
@@ -160,18 +191,66 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
  * @retval 0 si se modificó con éxito.
  * @retval -1 en caso de error.
  */
+
+
 int modify_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3) {
+    if (N_value2 > 32) return -1;
+
     sqlite3 *database;
     int create_database = sqlite3_open("database.db", &database);
     if (create_database != SQLITE_OK) {
         fprintf(stderr, "Error opening the database\n");
-        exit(-1);
+        return -1;
     }
+
+    char query[] = "UPDATE data SET value1 = ?, x = ?, y = ? WHERE data_key = ?";
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, value1, -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, value3.x);
+    sqlite3_bind_int(stmt, 3, value3.y);
+    sqlite3_bind_int(stmt, 4, key);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_finalize(stmt);
+
+    query[0] = '\0';
+    strcpy(query, "DELETE FROM value2_all WHERE data_key_fk = ?");
+    if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
+        sqlite3_close(database);
+        return -1;
+    }
+    sqlite3_bind_int(stmt, 1, key);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    query[0] = '\0';
+    strcpy(query, "INSERT INTO value2_all (id, data_key_fk, value) VALUES (?, ?, ?)");
+    for (int i = 0; i < N_value2; i++) {
+        if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
+            sqlite3_close(database);
+            return -1;
+        }
+        char primary_key[20];
+        sprintf(primary_key, "%d%d", key, i);
+        sqlite3_bind_text(stmt, 1, primary_key, -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 2, key);
+        sqlite3_bind_double(stmt, 3, V_value2[i]);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+
+    sqlite3_close(database);
     return 0;
-
-    //NO ME ACUERDO DE COMO SE HACE EN SQL
-
 }
+
 
 /**
  * @brief Este servicio permite borrar el elemento cuya clave es key.
