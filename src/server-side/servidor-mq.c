@@ -113,27 +113,52 @@ int process_request(parameters_to_pass* parameters)
                 return -1;
             }
             return 0;
-        case 2:  //DELETE
-            int delete = destroy();
-            if (delete == -1)
-            {
-                printf("ERROR ELIMINANDO ME HA DEVUELTO FALIO\n");
-                return -1;
-            }
-            return 0;
-        case 3:  //DELETE_KEY
-        int deletekey = delete_key(local_request.key);
-        if (deletekey == -1)
-        {
-            printf("ERROR ELIMINANDO ME HA DEVUELTO FALIO\n");
+    case 2:  // DELETE (destroy)
+        int delete = destroy();
+        if (delete == -1) {
+            printf("ERROR al eliminar TODAS las tuplas con destroy()\n");
             return -1;
+        } else {
+            printf("Todas las tuplas eliminadas correctamente con destroy()\n");
         }
         return 0;
-        case 4:  //MODIFY
 
-        case 5:  //GET_VALUE
+    case 3:  // DELETE_KEY (delete_key)
+        int deletekey = delete_key(local_request.key);
+        if (deletekey == -1) {
+            printf("ERROR eliminando la clave %d con delete_key()\n", local_request.key);
+            return -1;
+        } else {
+            printf("Clave %d eliminada correctamente con delete_key()\n", local_request.key);
+        }
+        return 0;
+    case 4:  // MODIFY
+        int modify = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+        if (modify == -1) {
+            printf("ERROR modificando la clave %d con modify_value()\n", local_request.key);
+            return -1;
+        } else {
+            printf("Clave %d modificada correctamente con modify_value()\n", local_request.key);
+        }
+        return 0;
 
-            ;
+    case 5:  // GET_VALUE
+        char value1[256];
+        int N_value2;
+        double value2[32];
+        struct Coord value3;
+
+        int get = get_value(local_request.key, value1, &N_value2, value2, &value3);
+        if (get == -1) {
+            printf("ERROR obteniendo la clave %d con get_value()\n", local_request.key);
+            return -1;
+        } else {
+            printf("Clave %d obtenida correctamente: value1='%s', N_value2=%d, Coord=(%d, %d)\n",
+                   local_request.key, value1, N_value2, value3.x, value3.y);
+        }
+        return 0;
+
+
     }
 
     printf("Acabado el trabajo el hilo %d\n", local_id);

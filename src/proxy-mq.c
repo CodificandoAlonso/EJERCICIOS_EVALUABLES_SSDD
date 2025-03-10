@@ -17,6 +17,7 @@ typedef struct {
 } request_t;
 
 int send_request(request_t *msg) {
+
     mqd_t mq_server;
     struct mq_attr attr;
 
@@ -25,21 +26,21 @@ int send_request(request_t *msg) {
     attr.mq_msgsize = sizeof(request_t);
     attr.mq_curmsgs = 0;
 
-    mq_server = mq_open(MQ_NAME, O_WRONLY);
+    mq_server = mq_open("/servidor_queue_9453", O_WRONLY);
     if (mq_server == -1) {
-        perror("Error al abrir la cola de mensajes del servidor");
         return -2;
     }
 
+
     if (mq_send(mq_server, (char *)msg, sizeof(request_t), 0) == -1) {
-        perror("Error al enviar mensaje al servidor");
         mq_close(mq_server);
         return -2;
     }
-    mq_close(mq_server);
 
+    mq_close(mq_server);
     return 0;
 }
+
 
 int destroy() {
     request_t msg = {2, 0};

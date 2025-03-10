@@ -137,8 +137,8 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
-
-    char query[] = "SELECT value1, x, y FROM data WHERE data_key = ?";
+    char query[128];
+    strcpy(query, "SELECT value1, x, y FROM data WHERE data_key = ?");
     if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(database);
         return -1;
@@ -146,7 +146,16 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
     sqlite3_bind_int(stmt, 1, key);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
-        strcpy(value1, (const char*)sqlite3_column_text(stmt, 0));
+        const char *text = (const char*)sqlite3_column_text(stmt, 0);
+        if (text){
+            printf("🔍 Valor leído de BD: %s\n", text ? text : "NULL");
+
+            strncpy(value1, text, 255);
+            value1[255] = '\0';  // Evitar problemas de memoria
+        } else {
+            value1[0] = '\0';  // Si el valor es NULL, dejarlo vacío
+        }
+
         value3->x = sqlite3_column_int(stmt, 1);
         value3->y = sqlite3_column_int(stmt, 2);
     } else {
@@ -157,7 +166,7 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
     sqlite3_finalize(stmt);
 
     query[0] = '\0';
-    strcpy(query, "SELECT value FROM value2_all WHERE data_key_fk = ? ORDER BY id");
+    snprintf(query, sizeof(query), "SELECT value FROM value2_all WHERE data_key_fk = ? ORDER BY id");
     if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(database);
         return -1;
@@ -202,8 +211,8 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2, struct C
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
-
-    char query[] = "UPDATE data SET value1 = ?, x = ?, y = ? WHERE data_key = ?";
+    char query[128];
+    strcpy (query, "UPDATE data SET value1 = ?, x = ?, y = ? WHERE data_key = ?");
     sqlite3_stmt *stmt;
     if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(database);
@@ -222,7 +231,7 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2, struct C
     sqlite3_finalize(stmt);
 
     query[0] = '\0';
-    strcpy(query, "DELETE FROM value2_all WHERE data_key_fk = ?");
+    snprintf(query, sizeof(query), "DELETE FROM value2_all WHERE data_key_fk = ?");
     if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(database);
         return -1;
@@ -232,7 +241,7 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2, struct C
     sqlite3_finalize(stmt);
 
     query[0] = '\0';
-    strcpy(query, "INSERT INTO value2_all (id, data_key_fk, value) VALUES (?, ?, ?)");
+    snprintf(query, sizeof(query), "INSERT INTO value2_all (id, data_key_fk, value) VALUES (?, ?, ?)");
     for (int i = 0; i < N_value2; i++) {
         if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
             sqlite3_close(database);
@@ -264,30 +273,45 @@ int modify_value(int key, char *value1, int N_value2, double *V_value2, struct C
  */
 int delete_key(int key) {
     sqlite3 *database;
+    sqlite3_stmt *stmt;
     int create_database = sqlite3_open("database.db", &database);
     if (create_database != SQLITE_OK) {
         fprintf(stderr, "Error opening the database\n");
-        exit(-1);
+        return -1;
     }
 
     char* message_error = NULL;
-    //Habilitar las foreign keys para mejor manejo de la base de datos
+    // Habilitar las foreign keys para mejor manejo de la base de datos
     if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "Error with the fk definition %s", message_error);
-        exit(-3);
+        sqlite3_close(database);
+        return -3;
     }
 
-    //EL FAVORITO DE NAVARRO
-    message_error = NULL;
-    char delete_key[256];
-    sprintf(delete_key,
-            "DELETE from data "
-            "WHERE data_key == %d;", key);
-    printf("Esto vale delete_key %s\n", delete_key);
-    if (sqlite3_exec(database, delete_key, NULL, NULL, &message_error) != SQLITE_OK) {
-        fprintf(stderr, "ERROR DELETING LINE FROM TABLE \n");
+    // Nueva consulta preparada
+    char delete_query[] = "DELETE FROM data WHERE data_key = ?";
+    sqlite3_busy_timeout(database, 5000);  // Espera hasta 5 segundos antes de fallar
+
+    if (sqlite3_prepare_v2(database, delete_query, -1, &stmt, NULL) != SQLITE_OK) {
+        fprintf(stderr, "Error preparando la consulta DELETE\n");
+        sqlite3_close(database);
         return -1;
     }
+
+    sqlite3_bind_int(stmt, 1, key);  // Enlazar el valor de la clave a eliminar
+
+    int result = sqlite3_step(stmt);
+    if (result != SQLITE_DONE) {
+        fprintf(stderr, "ERROR eliminando la clave %d: %s\n", key, sqlite3_errmsg(database));
+        sqlite3_finalize(stmt);
+        sqlite3_close(database);
+        return -1;
+    }
+
+    printf("Clave %d eliminada correctamente\n", key);
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(database);
     return 0;
 }
 
