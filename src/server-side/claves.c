@@ -127,8 +127,6 @@ int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coor
  * @retval 0 en caso de éxito.
  * @retval -1 en caso de error.
  */
-
-
 int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3) {
     sqlite3 *database;
     sqlite3_stmt *stmt;

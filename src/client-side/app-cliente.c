@@ -44,7 +44,6 @@ int main() {
     int N_value2;
     double v2_obtenido[32];
     struct Coord v3_obtenido;
-
     printf("\n🔹 PRUEBA 2: Obtener tupla\n");
     if (get_value(key, v1_obtenido, &N_value2, v2_obtenido, &v3_obtenido) == 0) {
         printf("✅ Tupla obtenida: v1='%s', N_value2=%d, Coord=(%d, %d)\n",
@@ -78,6 +77,7 @@ int main() {
     } else {
         printf("❌ Error al limpiar la base de datos\n");
     }
+
 
     return 0;
 }
