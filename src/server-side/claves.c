@@ -1,9 +1,11 @@
 #include "../claves.h"
+
+#include <headers.h>
 #include<stdio.h>
 #include<sqlite3.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "treat_sql.h"
 
 /**
  * @brief Esta llamada permite inicializar el servicio de elementos clave-valor1-valor2-valor3.
@@ -135,6 +137,33 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
+
+    char query[256];
+    char answer[256];
+    sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
+    printf("Esto vale query: %s\n", query);
+    receive_sql receive = {0};
+    if (sqlite3_exec(database, query, recall_row_data, (void *)&receive, NULL) != SQLITE_OK) {
+        fprintf(stderr, "ERROR ejecutando la consulta\n");
+        sqlite3_close(database);
+        return -1;
+    }
+    sprintf(query, "SELECT value FROM value2_all WHERE data_key_fk == %d;", key);
+    printf("Sexo\n");
+    if (sqlite3_exec(database, query, recall_row_value2_all, (void *)&receive, NULL) != SQLITE_OK) {
+        fprintf(stderr, "ERROR ejecutando la consulta\n");
+        sqlite3_close(database);
+        return -1;
+    }
+    memcpy(value1, receive.value_1, sizeof(receive.value_1));
+    for(int i = 0; i< receive.N_values; i++) {
+        V_value2[i] = receive.value_2[i];
+    }
+    value3->x = receive.value3.x;
+    value3->y = receive.value3.y;
+    sqlite3_close(database);
+    return 0;
+    /*
     char query[128];
     strcpy(query, "SELECT value1, x, y FROM data WHERE data_key = ?");
     if (sqlite3_prepare_v2(database, query, -1, &stmt, NULL) != SQLITE_OK) {
@@ -180,6 +209,9 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
     sqlite3_finalize(stmt);
     sqlite3_close(database);
     return 0;
+    */
+
+
 }
 
 /**

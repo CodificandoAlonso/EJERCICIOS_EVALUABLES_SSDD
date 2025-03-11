@@ -19,6 +19,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/client-side)
 add_executable(server
         ${CMAKE_CURRENT_SOURCE_DIR}/src/server-side/servidor-mq.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/server-side/claves.c
+        src/server-side/treat_sql.c
 )
 
 #enlazar librerrias con el servidor

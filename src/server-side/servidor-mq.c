@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE  //define necesario para poder usar join no bloqueante de hilos
 #include<stdio.h>
 #include<pthread.h>
 #include "../claves.h"
@@ -9,6 +9,7 @@
 #include<errno.h>
 #include <string.h>
 #include<unistd.h>
+#include "headers.h"
 
 
 #define MAX_THREADS 10
@@ -42,22 +43,26 @@ void pad_array()
 }
 
 
+int answer_back(request *params) {
+    struct mq_attr attr = {0};
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = 8; // Máximo 10 mensajes en la cola
+    attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
+    attr.mq_curmsgs = 0;
+    mqd_t client_queue;
+    char name[32];
+    sprintf(name, "client_queue_%s",params->client_queue);
+    client_queue = mq_open(params->client_queue,O_CREAT | O_RDWR | O_NONBLOCK, 0660, &attr);
+    if (client_queue < 0) {
+        perror("Error abriendo la cola del cliente\n");
+    }
+    if(mq_send(client_queue, (char *)params, sizeof(request), 0) == -1) {
+        perror("Error enviando\n");
+    }
+    return 0;
+}
 
-typedef struct request {
-    int type;
-    int key;
-    char value_1[256];
-    int N_value_2;
-    double value_2[32];
-    struct Coord value_3;
-} request;
 
-
-typedef struct parameters_to_pass_threads
-{
-    request* this_request;
-    int identifier;
-} parameters_to_pass;
 
 
 /**@brief Esta es la función que ejecutan los distintos hilos dentro de nuestra pool de hilos
@@ -106,8 +111,8 @@ int process_request(parameters_to_pass* parameters)
         }
         return 0;
     case 4:  // MODIFY
-        int modify = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
-        if (modify == -1) {
+        local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+        if (local_request.answer == -1) {
             printf("ERROR modificando la clave %d con modify_value()\n", local_request.key);
             return -1;
         } else {
@@ -116,18 +121,12 @@ int process_request(parameters_to_pass* parameters)
         return 0;
 
     case 5:  // GET_VALUE
-        char value1[256];
-        int N_value2;
-        double value2[32];
-        struct Coord value3;
-
-        int get = get_value(local_request.key, value1, &N_value2, value2, &value3);
-        if (get == -1) {
+        local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2, local_request.value_2, &local_request.value_3);
+        if (local_request.answer == -1) {
             printf("ERROR obteniendo la clave %d con get_value()\n", local_request.key);
             return -1;
         } else {
-            printf("Clave %d obtenida correctamente: value1='%s', N_value2=%d, Coord=(%d, %d)\n",
-                   local_request.key, value1, N_value2, value3.x, value3.y);
+            answer_back(&local_request);
         }
         return 0;
 
