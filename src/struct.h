@@ -1,5 +1,5 @@
-#ifndef HEADERS_H
-#define HEADERS_H
+#ifndef STRUCT_H
+#define STRUCT_H
 
 #include "claves.h"
 
@@ -42,6 +42,7 @@ typedef struct receive_sql {
     int N_values;
     double value_2[32];
     struct Coord value3;
+    int empty;;
 }receive_sql;
 
 

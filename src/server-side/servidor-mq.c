@@ -7,15 +7,17 @@
 #include "../claves.h"
 #include<sqlite3.h>
 #include<errno.h>
+#include <signal.h>
 #include <string.h>
 #include<unistd.h>
-#include "headers.h"
+#include <bits/signum-generic.h>
+
+#include "../struct.h"
 
 
-#define MAX_THREADS 10
+#define MAX_THREADS 25
 
-
-
+sqlite3* databasee;
 
 
 //Creación de hilos, arrays de hilos y contador de hilos ocupados
@@ -27,6 +29,13 @@ pthread_mutex_t mutex_copy_params;
 pthread_cond_t cond_wait_cpy;
 pthread_mutex_t mutex_threads;
 pthread_cond_t cond_wait_threads;
+
+
+
+void exit_code(const mqd_t *queue) {
+    mq_close(*queue);
+    mq_unlink("/servidor_queue_9453");
+}
 
 
 
@@ -72,68 +81,77 @@ int answer_back(request *params) {
  *local de los datos se encargará de gestionar las distintas llamadas de claves.c para realizar las gestiones
  *en la base de datos correspondiente
  */
-int process_request(parameters_to_pass* parameters)
+int process_request(request* request_received)
 {
     pthread_mutex_lock(&mutex_copy_params);
-    request local_request = *parameters->this_request;
-    int local_id = parameters->identifier;
+    request local_request = *request_received;
     free_mutex_copy_params_cond = 1;
-    free_threads_array[local_id] = 1;
-    printf("Hilo %d ocupado\n", local_id);
     pthread_cond_signal(&cond_wait_cpy);
     pthread_mutex_unlock(&mutex_copy_params);
-
     switch (local_request.type){
         case 1: //INSERT
-            int insert = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
-            if (insert == -1)
+            pthread_mutex_lock(&mutex_copy_params);
+            local_request.answer = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+            pthread_mutex_unlock(&mutex_copy_params);
+            if (local_request.answer == -1)
             {
                 printf("ERROR INSERTANDO ME HA DEVUELTO FALIO\n");
-                return -1;
-            }
-            return 0;
-    case 2:  // DELETE (destroy)
-        int delete = destroy();
-        if (delete == -1) {
-            printf("ERROR al eliminar TODAS las tuplas con destroy()\n");
-            return -1;
-        }
-            printf("Todas las tuplas eliminadas correctamente con destroy()\n");
-            return 0;
 
-    case 3:  // DELETE_KEY (delete_key)
-        int deletekey = delete_key(local_request.key);
-        if (deletekey == -1) {
-            printf("ERROR eliminando la clave %d con delete_key()\n", local_request.key);
-            return -1;
-        } else {
-            printf("Clave %d eliminada correctamente con delete_key()\n", local_request.key);
+            }
+            answer_back(&local_request);
+
+        pthread_exit(0);
+    case 2:  // DELETE (destroy)
+        pthread_mutex_lock(&mutex_copy_params);
+        local_request.answer = destroy();
+        pthread_mutex_unlock(&mutex_copy_params);
+        if (local_request.answer == -1) {
+            printf("ERROR al eliminar TODAS las tuplas con destroy()\n");
         }
-        return 0;
+        answer_back(&local_request);
+        pthread_exit(0);
+    case 3:  // DELETE_KEY (delete_key)
+        pthread_mutex_lock(&mutex_copy_params);
+        local_request.answer = delete_key(local_request.key);
+        pthread_mutex_unlock(&mutex_copy_params);
+        if (local_request.answer == -1) {
+            printf("ERROR eliminando la clave %d con delete_key()\n", local_request.key);
+        }
+        answer_back(&local_request);
+        pthread_exit(0);
     case 4:  // MODIFY
+        pthread_mutex_lock(&mutex_copy_params);
         local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+        pthread_mutex_unlock(&mutex_copy_params);
         if (local_request.answer == -1) {
             printf("ERROR modificando la clave %d con modify_value()\n", local_request.key);
-            return -1;
-        } else {
-            printf("Clave %d modificada correctamente con modify_value()\n", local_request.key);
         }
-        return 0;
+        answer_back(&local_request);
+        pthread_exit(0);
 
     case 5:  // GET_VALUE
+        pthread_mutex_lock(&mutex_copy_params);
         local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2, local_request.value_2, &local_request.value_3);
+        pthread_mutex_unlock(&mutex_copy_params);
         if (local_request.answer == -1) {
             printf("ERROR obteniendo la clave %d con get_value()\n", local_request.key);
-            return -1;
-        } else {
-            answer_back(&local_request);
         }
-        return 0;
-
-
+        answer_back(&local_request);
+        pthread_exit(0);
+    default:
+        pthread_exit(0);
     }
+}
 
-    printf("Acabado el trabajo el hilo %d\n", local_id);
+
+
+int process_request_2(request* request_received)
+{
+    pthread_mutex_lock(&mutex_copy_params);
+    request local_request = *request_received;
+    free_mutex_copy_params_cond = 1;
+    pthread_cond_signal(&cond_wait_cpy);
+    pthread_mutex_unlock(&mutex_copy_params);
     pthread_exit(0);
 }
 
@@ -183,7 +201,6 @@ void create_table(sqlite3* db)
         "CONSTRAINT fk_origin FOREIGN KEY(data_key_fk) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
         "ON UPDATE CASCADE);";
 
-    printf("%s\n", new_table);
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR CREANDO TABLA 2\n");
@@ -202,18 +219,18 @@ void create_table(sqlite3* db)
 int main(int argc, char* argv[])
 {
     //Creando e inicializando la base de datos
+    sqlite3_config(SQLITE_CONFIG_SERIALIZED);
     sqlite3* database;
-    int create_database = sqlite3_open("database.db", &database);
+    int create_database = sqlite3_open("database.db", &databasee);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
         exit(-1);
     }
     printf("Exito abriendo la base de datos\n");
-
     //Creo la tabla principal "data" y la subtabla "value2_all"
-    create_table(database);
-    sqlite3_close(database);
+    create_table(databasee);
+    sqlite3_close(databasee);
 
     //LLeno de 0s el array de threads ocupados
     pad_array();
@@ -243,7 +260,6 @@ int main(int argc, char* argv[])
     {
         mq_close(server_queue);
         fprintf(stderr, "Error abriendo la cola del servidor: %s %s\n", strerror(errno), nombre);
-        printf("Error abriendo la cola del servidor\n");
         return -1;
     }
     printf("Todo bien abriendo la cola del servidor con fd: %d\n", server_queue);
@@ -251,19 +267,21 @@ int main(int argc, char* argv[])
 
     //Me creo la estructura request para manejar las peticiones
     request new_request;
+    parameters_to_pass params;
     //Gestion de la concurrencia con las peticiones
     while (1)
     {
-        /*
-        printf("PARA SALIR PON 'exit' mamawebo\n");
-        fgets(buffer,sizeof(buffer),stdin);
-        if (strcmp(buffer, "exit"))
-        {
+
+        signal(SIGINT, exit_code());
+        if(SIGINT) {
+            mq_close(server_queue);
+            mq_unlink("/servidor_queue_9453");
             break;
         }
-        */
+
+
         //Esto intenta realizar un join no bloqueante
-        pthread_mutex_lock(&mutex_threads);
+        //pthread_mutex_lock(&mutex_threads);
         for (int i = 0; i < MAX_THREADS; i++) {
             if (free_threads_array[i] == 1) { //Si el hilo ha estado trabajando miro a ver si puedo hacerle join
                 if (pthread_tryjoin_np(thread_pool[i], NULL)== 0) {
@@ -273,7 +291,7 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        pthread_mutex_unlock(&mutex_threads);
+        //pthread_mutex_unlock(&mutex_threads);
         //Veo si hay mensajes
         ssize_t message = mq_receive(server_queue, (char*)&new_request, sizeof(request), 0);
         if (message >= 0)
@@ -283,38 +301,41 @@ int main(int argc, char* argv[])
 
             //Miro el primer hilo disponible y le mando currar. JAAAAPIUU, a currar esclavo
             //Necesita seccion critica por el acceso al array
-            pthread_mutex_lock(&mutex_threads);
+            //pthread_mutex_lock(&mutex_threads);
             for(int i =0; i< MAX_THREADS; i++)
             {
                 if(free_threads_array[i] == 0){
-                    parameters_to_pass params;
-                    params.identifier = i;
-                    params.this_request = &new_request;
-                    pthread_create(&thread_pool[i],NULL,(void *)process_request,&params);
+                    free_threads_array[i] = 1;
+                    workload ++;
+                    printf("Hilo %d al latigo\n", i);
+
+                    if (pthread_create(&thread_pool[i],NULL,(void *)process_request,&new_request) == 0) {
+                        pthread_mutex_lock(&mutex_copy_params);
+                        while(free_mutex_copy_params_cond == 0)
+                            pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);
+                        free_mutex_copy_params_cond = 0;
+                        pthread_mutex_unlock(&mutex_copy_params);
+                    }
                     break;
                 }
+                if(workload == MAX_THREADS) {
+
+                    message = mq_send(server_queue, (char*)&new_request, sizeof(request), 0);
+                    if (message < 0) {
+                        return -1;
+                    }
+                        printf("Vuelto a meter en la cola\n");
+                }
             }
-            pthread_mutex_unlock(&mutex_threads);
+
+            //pthread_mutex_unlock(&mutex_threads);
 
 
             //Solo hago la espera si no hay ningun hilo currando. Si son todos unos putos vagos de mierda no entro
-            pthread_mutex_lock(&mutex_threads);
-            if (workload >0)
-            {
-                pthread_mutex_lock(&mutex_copy_params);
-                while(free_mutex_copy_params_cond == 0)
-                    pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);
-                free_mutex_copy_params_cond = 0;
-                pthread_mutex_unlock(&mutex_copy_params);
-            }
-            else
-            {
-                pthread_mutex_unlock(&mutex_threads);
-            }
+            //pthread_mutex_lock(&mutex_threads);
         }
-        //ERROR RECEPCION MENSAJE
+        //PEQUEÑO SLEEP PA QUE NO SE LIE
         else if(errno == EAGAIN) {
-        usleep(1000);
         }
         else {
             //si se me lia el mensaje

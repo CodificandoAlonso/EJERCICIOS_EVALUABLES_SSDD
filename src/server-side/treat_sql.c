@@ -1,4 +1,4 @@
-#include "../headers.h"
+#include "../struct.h"
 #include "treat_sql.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,9 +13,13 @@
  */
 int recall_row_data(void *data, int num_columns, char **column_values, char **column_names) {
     receive_sql *sql = data;
-    memcpy(sql->value_1,column_values[0], sizeof(column_values[0]));
+
+    printf("Esto vale column_val0 %s\n", column_values[0]);
+    printf("Esto es sizeof de es %ld\n", sizeof(column_values));
+    memcpy(sql->value_1,column_values[0], strlen(column_values[0]));
     sql->value3.x = atoi(column_values[1]);
     sql->value3.y = atoi(column_values[2]);
+    sql->empty = 1;
     return 0;
 }
 

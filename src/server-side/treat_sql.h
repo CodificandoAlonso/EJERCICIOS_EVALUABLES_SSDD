@@ -1,7 +1,6 @@
 #ifndef TREAT_SQL_H
 #define TREAT_SQL_H
 
-#include "../headers.h"
 
 
 /**
