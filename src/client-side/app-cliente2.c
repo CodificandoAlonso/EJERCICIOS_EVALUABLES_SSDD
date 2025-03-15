@@ -3,7 +3,7 @@
 #include "claves.h"
 
 int main() {
-    int key = 5;
+    int key = 6;
     char v1[256] = "valor inicial";
     double v2[] = {2.3, 0.5, 23.45};
     struct Coord v3;
@@ -18,11 +18,12 @@ int main() {
     }
 
     printf("\n🔹 PRUEBA 1.5: Insertar tupla\n");
-    if (set_value(77, "No me borras", 3, v2, v3) == 0) {
+    if (set_value(78, "No me borras", 3, v2, v3) == 0) {
         printf("✅ Tupla insertada correctamente\n");
     } else {
         printf("❌ Error al insertar tupla\n");
     }
+
 
     // Variables para get_value()
     char v1_obtenido[256];
@@ -41,7 +42,6 @@ int main() {
           printf("%lf, ", v2_obtenido[i]);
         }
         printf("Coord= (%d, %d)\n",v3_obtenido.x, v3_obtenido.y);
-
     } else {
         printf("❌ Error al obtener la tupla\n");
     }
