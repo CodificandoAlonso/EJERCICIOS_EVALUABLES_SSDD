@@ -4,4 +4,3 @@
 vgcore.*
 cmake-build-*
 src/client-side/app-cliente-inf.c
-*.zip
