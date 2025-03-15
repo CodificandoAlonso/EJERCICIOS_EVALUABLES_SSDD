@@ -256,6 +256,7 @@ int main(int argc, char* argv[])
     //inicializacion mutex para la copia local de parametros
     pthread_mutex_init(&mutex_copy_params, NULL);
     pthread_cond_init(&cond_wait_cpy, NULL);
+    pthread_mutex_init(&ddbb_mutex, NULL);
 
 
     //Inicializo y abro la cola del servidor

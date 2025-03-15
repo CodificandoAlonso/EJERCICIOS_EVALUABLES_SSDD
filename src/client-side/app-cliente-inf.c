@@ -19,10 +19,13 @@ typedef struct value_2 {
 int main(int argc, char** argv)
 {
     char buffer[256];
+    printf("WELCOME CLIENT");
     while (1)
     {
-        printf("WELCOME CLIENT, NOW TYPE 'EXIT' TO LOG OUT OR "
+        printf("\n--------------------------------------------------------------------\n");
+        printf("PLEASE, TYPE 'EXIT' TO LOG OUT OR "
             "'SET_VALUE', 'DESTROY', 'DELETE_KEY', 'MODIFY_VALUE' OR 'GET_VALUE'\n");
+        printf("--------------------------------------------------------------------\n");
         fgets(buffer, sizeof(buffer),stdin);
         if (strcmp(buffer, "EXIT\n") == 0)
         {
