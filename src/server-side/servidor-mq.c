@@ -1,45 +1,35 @@
 #define _GNU_SOURCE  //define necesario para poder usar join no bloqueante de hilos
 #include<stdio.h>
 #include<pthread.h>
-#include "../claves.h"
 #include<mqueue.h>
 #include<stdlib.h>
-#include "../claves.h"
 #include<sqlite3.h>
 #include<errno.h>
 #include <signal.h>
 #include <string.h>
-#include<unistd.h>
-#include <bits/signum-generic.h>
-
-#include "../struct.h"
+#include "struct.h"
+#include "claves.h"
 
 
 #define MAX_THREADS 25
 
-sqlite3* databasee;
+//Inicializador global de los fd para la bbdd y la queue del servidor
+sqlite3* database_server = 0;
+mqd_t server_queue = 0;
 
 
 //Creación de hilos, arrays de hilos y contador de hilos ocupados
 pthread_t thread_pool[MAX_THREADS];
 int free_threads_array[MAX_THREADS];
-int workload = 0;
+
 int free_mutex_copy_params_cond = 0;
 pthread_mutex_t mutex_copy_params;
 pthread_cond_t cond_wait_cpy;
-pthread_mutex_t mutex_threads;
-pthread_cond_t cond_wait_threads;
+//contador para saber cuantos hilos estan trabajando
+int workload = 0;
 
-
-
-void exit_code(const mqd_t *queue) {
-    mq_close(*queue);
-    mq_unlink("/servidor_queue_9453");
-}
-
-
-
-/**@brief Esta función se usa para rellenar el array auxiliar que indica qué hilo está trabajando(1)
+/**
+ *@brief Esta función se usa para rellenar el array auxiliar que indica qué hilo está trabajando(1)
  *y cuál está libre(0)
  */
 void pad_array()
@@ -51,8 +41,12 @@ void pad_array()
     }
 }
 
-
-int answer_back(request *params) {
+/**
+ *@brief Esta función se usa para enviar el mensaje de vuelta al cliente, recibe como parametros la estructura request
+ * y con ella envia los datos. es invocada por cada hilo en la funcion process request.
+ */
+int answer_back(request* params)
+{
     struct mq_attr attr = {0};
     attr.mq_flags = 0;
     attr.mq_maxmsg = 8; // Máximo 10 mensajes en la cola
@@ -60,21 +54,25 @@ int answer_back(request *params) {
     attr.mq_curmsgs = 0;
     mqd_t client_queue;
     char name[32];
-    sprintf(name, "client_queue_%s",params->client_queue);
-    client_queue = mq_open(params->client_queue,O_CREAT | O_RDWR | O_NONBLOCK, 0660, &attr);
-    if (client_queue < 0) {
-        perror("Error abriendo la cola del cliente\n");
+    //Name nunca pued ser mayor que 32, de ahi el .18s
+    snprintf(name, sizeof(name), "client_queue_%.18s", params->client_queue);
+    client_queue = mq_open(params->client_queue,O_CREAT | O_WRONLY, 0644, &attr);
+    if (client_queue < 0)
+    {
+        printf("Error opening clients queue\n");
+        return -2;
     }
-    if(mq_send(client_queue, (char *)params, sizeof(request), 0) == -1) {
-        perror("Error enviando\n");
+    if (mq_send(client_queue, (char*)params, sizeof(request), 0) == -1)
+    {
+        printf("Error sending\n");
+        return -2;
     }
     return 0;
 }
 
 
-
-
-/**@brief Esta es la función que ejecutan los distintos hilos dentro de nuestra pool de hilos
+/**
+ *@brief Esta es la función que ejecutan los distintos hilos dentro de nuestra pool de hilos
  *Requiere de la dir de memoria de uns estructura de tipo parameters_to_pass que se compone de
  *una estructura petición y una variable id, que identifica al thread que está ejecutando, para
  *indicar en el array de threads que ese hilo no está disponible en el momento. Una vez realiza la copia
@@ -88,53 +86,60 @@ int process_request(request* request_received)
     free_mutex_copy_params_cond = 1;
     pthread_cond_signal(&cond_wait_cpy);
     pthread_mutex_unlock(&mutex_copy_params);
-    switch (local_request.type){
-        case 1: //INSERT
-            pthread_mutex_lock(&mutex_copy_params);
-            local_request.answer = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
-            pthread_mutex_unlock(&mutex_copy_params);
-            if (local_request.answer == -1)
-            {
-                printf("ERROR INSERTANDO ME HA DEVUELTO FALIO\n");
-
-            }
-            answer_back(&local_request);
+    switch (local_request.type)
+    {
+    case 1: //INSERT
+        pthread_mutex_lock(&mutex_copy_params);
+        local_request.answer = set_value(local_request.key, local_request.value_1, local_request.N_value_2,
+                                         local_request.value_2, local_request.value_3);
+        pthread_mutex_unlock(&mutex_copy_params);
+        if (local_request.answer == -1)
+        {
+            printf("ERROR inserting, failure was detected\n");
+        }
+        answer_back(&local_request);
 
         pthread_exit(0);
-    case 2:  // DELETE (destroy)
+    case 2: // DELETE (destroy)
         pthread_mutex_lock(&mutex_copy_params);
         local_request.answer = destroy();
         pthread_mutex_unlock(&mutex_copy_params);
-        if (local_request.answer == -1) {
-            printf("ERROR al eliminar TODAS las tuplas con destroy()\n");
+        if (local_request.answer == -1)
+        {
+            printf("ERROR erasing tuples with destroy()\n");
         }
         answer_back(&local_request);
         pthread_exit(0);
-    case 3:  // DELETE_KEY (delete_key)
+    case 3: // DELETE_KEY (delete_key)
         pthread_mutex_lock(&mutex_copy_params);
         local_request.answer = delete_key(local_request.key);
         pthread_mutex_unlock(&mutex_copy_params);
-        if (local_request.answer == -1) {
-            printf("ERROR eliminando la clave %d con delete_key()\n", local_request.key);
+        if (local_request.answer == -1)
+        {
+            printf("ERROR erasing key %d with delete_key()\n", local_request.key);
         }
         answer_back(&local_request);
         pthread_exit(0);
-    case 4:  // MODIFY
+    case 4: // MODIFY
         pthread_mutex_lock(&mutex_copy_params);
-        local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+        local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2,
+                                            local_request.value_2, local_request.value_3);
         pthread_mutex_unlock(&mutex_copy_params);
-        if (local_request.answer == -1) {
-            printf("ERROR modificando la clave %d con modify_value()\n", local_request.key);
+        if (local_request.answer == -1)
+        {
+            printf("ERROR modifying key %d with modify_value()\n", local_request.key);
         }
         answer_back(&local_request);
         pthread_exit(0);
 
-    case 5:  // GET_VALUE
+    case 5: // GET_VALUE
         pthread_mutex_lock(&mutex_copy_params);
-        local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2, local_request.value_2, &local_request.value_3);
+        local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2,
+                                         local_request.value_2, &local_request.value_3);
         pthread_mutex_unlock(&mutex_copy_params);
-        if (local_request.answer == -1) {
-            printf("ERROR obteniendo la clave %d con get_value()\n", local_request.key);
+        if (local_request.answer == -1)
+        {
+            printf("ERROR obtaining key %d with get_value()\n", local_request.key);
         }
         answer_back(&local_request);
         pthread_exit(0);
@@ -144,21 +149,8 @@ int process_request(request* request_received)
 }
 
 
-
-int process_request_2(request* request_received)
-{
-    pthread_mutex_lock(&mutex_copy_params);
-    request local_request = *request_received;
-    free_mutex_copy_params_cond = 1;
-    pthread_cond_signal(&cond_wait_cpy);
-    pthread_mutex_unlock(&mutex_copy_params);
-    pthread_exit(0);
-}
-
-
-
-
-/**@brief Función implementada al inicializarse el servidor que creará las tablas de SQL que se encargarán
+/**
+ *@brief Función implementada al inicializarse el servidor que creará las tablas de SQL que se encargarán
  *de mantener nuestros datos ordenados. Hemos creado 2 tablas, una "data" que guardará tanto el id(Primary key)
  *como value1 y value3. Value2 como es un array de longitud variable, nos hemos creado una tabla "value2_all"
  *que hereda de data la PK a modo de Foreign Key con UPDATE y DELETE CASCADE(Si se borra la pk de data, se borrarán
@@ -170,13 +162,15 @@ int process_request_2(request* request_received)
  *  31   3    2.15
  *  32   3    14.33
  */
-void create_table(sqlite3* db)
+int create_table(sqlite3* db)
 {
     char* message_error = NULL;
     //Habilitar las foreign keys para mejor manejo de la base de datos
-    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
+    {
         fprintf(stderr, "Error with the fk definition %s", message_error);
-        exit(-3);
+        sqlite3_close(database_server);
+        return -4;
     }
 
     char* new_table =
@@ -188,10 +182,10 @@ void create_table(sqlite3* db)
         ");";
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
     {
-        fprintf(stderr, "ERROR CREANDO TABLA 1\n");
-        exit(-4);
+        fprintf(stderr, "ERROR CREATING MAIN TABLE %s\n", message_error);
+        sqlite3_close(database_server);
+        return -4;
     }
-    printf("EXITO CREANDO TABLA 1\n");
     message_error = NULL;
     new_table =
         "CREATE TABLE IF NOT EXISTS value2_all("
@@ -203,40 +197,53 @@ void create_table(sqlite3* db)
 
     if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
     {
-        fprintf(stderr, "ERROR CREANDO TABLA 2\n");
-        exit(-4);
+        fprintf(stderr, "ERROR CREATING SECONDARY TABLE 2\n");
+        sqlite3_close(database_server);
+        return -4;
     }
-    printf("EXITO CREANDO TABLA 2\n");
+    return 0;
 }
 
 
-
-
-
-
+/**
+ *@brief Función implementada para hacer un cierre seguro del servidor cuando se pulsa CRTL + C
+ */
+void safe_close(int ctrlc)
+{
+    printf("-----------------------------------------------\n");
+    printf("\nEXIT SIGNAL RECEIVED. CLOSING ALL AND GOODBYE\n");
+    printf("-----------------------------------------------\n");
+    mq_close(server_queue);
+    mq_unlink("/servidor_queue_9453");
+    exit(0);
+}
 
 
 int main(int argc, char* argv[])
 {
+    //Inicializo la signal para tratar el crtl c y realizar un cierre seguro de la aplicacion
+    signal(SIGINT, safe_close);
+
     //Creando e inicializando la base de datos
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    sqlite3* database;
-    int create_database = sqlite3_open("database.db", &databasee);
+    int create_database = sqlite3_open("/tmp/database.db", &database_server);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
-        exit(-1);
+        exit(-4);
     }
-    printf("Exito abriendo la base de datos\n");
     //Creo la tabla principal "data" y la subtabla "value2_all"
-    create_table(databasee);
-    sqlite3_close(databasee);
+    if (create_table(database_server) < 0)
+    {
+        exit(-4);
+    }
+    sqlite3_close(database_server);
 
     //LLeno de 0s el array de threads ocupados
     pad_array();
 
 
-
+    //Inicializo la estructura de la cola de mensajes.
     struct mq_attr attr = {0};
     attr.mq_flags = 0;
     attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
@@ -247,100 +254,86 @@ int main(int argc, char* argv[])
     //inicializacion mutex para la copia local de parametros
     pthread_mutex_init(&mutex_copy_params, NULL);
     pthread_cond_init(&cond_wait_cpy, NULL);
-    //inicializacion mutex para la variacion del numero de threads usados
-    pthread_mutex_init(&mutex_threads, NULL);
-    pthread_cond_init(&cond_wait_threads, NULL);
 
 
     //Inicializo y abro la cola del servidor
     mqd_t server_queue;
-    char *nombre = "/servidor_queue_9453";
-    server_queue = mq_open(nombre, O_CREAT | O_RDWR | O_NONBLOCK, 0660, &attr);
+    char* nombre = "/servidor_queue_9453";
+    server_queue = mq_open(nombre, O_CREAT | O_RDWR | O_NONBLOCK, 0644, &attr);
     if (server_queue == -1)
     {
         mq_close(server_queue);
-        fprintf(stderr, "Error abriendo la cola del servidor: %s %s\n", strerror(errno), nombre);
-        return -1;
+        fprintf(stderr, "Error opening server queue. Error code: %s\n", strerror(errno));
+        exit(-1);
     }
-    printf("Todo bien abriendo la cola del servidor con fd: %d\n", server_queue);
 
 
     //Me creo la estructura request para manejar las peticiones
     request new_request;
-    parameters_to_pass params;
     //Gestion de la concurrencia con las peticiones
+    printf("SERVER ACTIVE. WAITING FOR REQUESTS...........\n");
     while (1)
     {
-
-        signal(SIGINT, exit_code());
-        if(SIGINT) {
-            mq_close(server_queue);
-            mq_unlink("/servidor_queue_9453");
-            break;
-        }
-
-
         //Esto intenta realizar un join no bloqueante
-        //pthread_mutex_lock(&mutex_threads);
-        for (int i = 0; i < MAX_THREADS; i++) {
-            if (free_threads_array[i] == 1) { //Si el hilo ha estado trabajando miro a ver si puedo hacerle join
-                if (pthread_tryjoin_np(thread_pool[i], NULL)== 0) {
+        for (int i = 0; i < MAX_THREADS; i++)
+        {
+            if (free_threads_array[i] == 1)
+            {
+                //Si el hilo ha estado trabajando miro a ver si puedo hacerle join
+                if (pthread_tryjoin_np(thread_pool[i], NULL) == 0)
+                {
                     free_threads_array[i] = 0; //Al ruedo de nuevo, maquina
                     workload--; // Avisar de que se puede currar
-                    printf("Hilo %d liberado y listo para reutilizarse\n", i);
+                    printf("Thread %d free and ready to reuse\n", i);
                 }
             }
         }
-        //pthread_mutex_unlock(&mutex_threads);
         //Veo si hay mensajes
         ssize_t message = mq_receive(server_queue, (char*)&new_request, sizeof(request), 0);
         if (message >= 0)
         {
-            printf("Se ha recibido un mensaje con id %d\n", new_request.key);
+            printf("Message received with id %d\n", new_request.key);
 
-
-            //Miro el primer hilo disponible y le mando currar. JAAAAPIUU, a currar esclavo
-            //Necesita seccion critica por el acceso al array
-            //pthread_mutex_lock(&mutex_threads);
-            for(int i =0; i< MAX_THREADS; i++)
+            //Miro el primer hilo disponible y le mando currar.
+            for (int i = 0; i < MAX_THREADS; i++)
             {
-                if(free_threads_array[i] == 0){
+                if (free_threads_array[i] == 0)
+                {
                     free_threads_array[i] = 1;
-                    workload ++;
-                    printf("Hilo %d al latigo\n", i);
+                    workload++;
+                    printf("Thread %d is now working\n", i);
 
-                    if (pthread_create(&thread_pool[i],NULL,(void *)process_request,&new_request) == 0) {
+                    if (pthread_create(&thread_pool[i],NULL, (void*)process_request, &new_request) == 0)
+                    {
                         pthread_mutex_lock(&mutex_copy_params);
-                        while(free_mutex_copy_params_cond == 0)
+                        while (free_mutex_copy_params_cond == 0)
                             pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);
                         free_mutex_copy_params_cond = 0;
                         pthread_mutex_unlock(&mutex_copy_params);
                     }
                     break;
                 }
-                if(workload == MAX_THREADS) {
-
+                //En caso de que no se pueda trabajar porque no hay hilos disponibles, en vez de hacer un wait, como
+                //el mensaje ha sido leido ya, lo reenvio a la cola
+                if (workload == MAX_THREADS)
+                {
                     message = mq_send(server_queue, (char*)&new_request, sizeof(request), 0);
-                    if (message < 0) {
-                        return -1;
+                    if (message < 0)
+                    {
+                        exit(-2);
                     }
-                        printf("Vuelto a meter en la cola\n");
+                    printf("Back in queue again with id: %d\n", new_request.key);
                 }
             }
-
-            //pthread_mutex_unlock(&mutex_threads);
-
-
-            //Solo hago la espera si no hay ningun hilo currando. Si son todos unos putos vagos de mierda no entro
-            //pthread_mutex_lock(&mutex_threads);
         }
-        //PEQUEÑO SLEEP PA QUE NO SE LIE
-        else if(errno == EAGAIN) {
+        //en caso de no recibir, como es un mq_receive no bloqueante, que no lo cuente como error.
+        else if (errno == EAGAIN)
+        {
         }
-        else {
+        else
+        {
             //si se me lia el mensaje
-            printf("Error al recibir mensaje: %s\n", strerror(errno));
-            //DE MOMENTO SI ES ERROR EN COMUNICACION ES ERROR -2
+            printf("Error receiving message %s\n", strerror(errno));
             exit(-2);
         }
     }

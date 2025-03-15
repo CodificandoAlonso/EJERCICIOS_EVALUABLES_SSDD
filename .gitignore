@@ -1,12 +1,7 @@
 *.o
+*.so
 .idea
 vgcore.*
-src/server-side/servidor-mq
-src/server-side/claves
-src/client-side/app-cliente
 cmake-build-*
-src/test.c
-src/test
-src/deletequeue.c
-src/delete
+src/client-side/app-cliente-inf.c
 *.zip

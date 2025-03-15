@@ -1,7 +1,7 @@
 compiler = gcc
-CFLAGS  = -Wall -g -Wextra -fPIC -lsqlite3 $(INCLUDES)
-INCLUDES = -I src/
-#LDFLAGS = -L. -lclaves
+CFLAGS  = -Wall -fPIC -lsqlite3 $(INCLUDES)
+INCLUDES = -I src/structs
+
 
 #SERVIDOR
 SERVER_SRCS = src/server-side/servidor-mq.c src/server-side/claves.c src/server-side/treat_sql.c
@@ -27,13 +27,15 @@ CLIENT3_APP_SRCS =src/client-side/app-cliente3.c
 CLIENT3_APP_OBJS = $(CLIENT3_APP_SRCS:.c=.o)
 CLIENT3_BIN = app-cliente3
 
-CLIENT4_APP_SRCS =src/client-side/prueba-cliente.c
-CLIENT4_APP_OBJS = $(CLIENT4_APP_SRCS:.c=.o)
-CLIENT4_BIN = prueba-cliente
+
+#CLiente infinito
+CLIENT_INF_APP_SRCS =src/client-side/app-cliente-inf.c
+CLIENT_INF_APP_OBJS = $(CLIENT_INF_APP_SRCS:.c=.o)
+CLIENT_INF_BIN = app-cliente-infinito
 
 
 
-all: $(SERVER_BIN) $(LIB_NAME) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT4_BIN)
+all: $(SERVER_BIN) $(LIB_NAME) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT_INF_BIN)
 
 
 #COMPILACION SERVER
@@ -54,14 +56,15 @@ $(CLIENT2_BIN): $(CLIENT2_APP_OBJS) $(LIB_NAME)
 $(CLIENT3_BIN): $(CLIENT3_APP_OBJS) $(LIB_NAME)
 	$(compiler) -o $@ $(CLIENT3_APP_OBJS) $(LIB_NAME)
 
-$(CLIENT4_BIN): $(CLIENT4_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT4_APP_OBJS) $(LIB_NAME)
+$(CLIENT_INF_BIN): $(CLIENT_INF_APP_OBJS) $(LIB_NAME)
+	$(compiler) -o $@ $(CLIENT_INF_APP_OBJS) $(LIB_NAME)
 
 %.o: %.c
 	$(compiler) $(CFLAGS) -c $< -o $@
 
 #LIMPIA; ME LO CARGO TODO
 clean:
-	rm -f $(SERVER_OBJS) $(CLIENT_LIB_OBJS) $(CLIENT_APP_OBJS) \
-	      $(SERVER_BIN) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT4_BIN) $(LIB_NAME)
-	rm -r database.db
+	rm -f $(SERVER_OBJS) $(CLIENT_LIB_OBJS) $(CLIENT1_APP_OBJS) $(CLIENT2_APP_OBJS) $(CLIENT3_APP_OBJS) \
+			$(CLIENT_INF_APP_OBJS) \
+	      $(SERVER_BIN) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT_INF_BIN) $(LIB_NAME)
+	rm -r /tmp/database.db

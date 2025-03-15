@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "../claves.h"
+#include "claves.h"
 
 int main() {
     int key = 5;
@@ -24,7 +24,6 @@ int main() {
         printf("❌ Error al insertar tupla\n");
     }
 
-
     // Variables para get_value()
     char v1_obtenido[256];
     int N_value2;
@@ -32,8 +31,17 @@ int main() {
     struct Coord v3_obtenido;
     printf("\n🔹 PRUEBA 2: Obtener tupla\n");
     if (get_value(key, v1_obtenido, &N_value2, v2_obtenido, &v3_obtenido) == 0) {
-        printf("✅ Tupla obtenida: v1='%s', N_value2=%d, Coord=(%d, %d)\n",
-                v1_obtenido, N_value2, v3_obtenido.x, v3_obtenido.y);
+        printf("✅ Tupla obtenida: v1= '%s' ",v1_obtenido);
+        printf("v2= {");
+        for(int i = 0; i< N_value2; i++){
+          if (i == N_value2-1){
+            printf("%lf}, ", v2_obtenido[i]);
+            break;
+          }
+          printf("%lf, ", v2_obtenido[i]);
+        }
+        printf("Coord= (%d, %d)\n",v3_obtenido.x, v3_obtenido.y);
+
     } else {
         printf("❌ Error al obtener la tupla\n");
     }
