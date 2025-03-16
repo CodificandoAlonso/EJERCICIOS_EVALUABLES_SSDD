@@ -28,7 +28,7 @@ int get_response(request* answer)
     const mqd_t client_queue = mq_open(client, O_CREAT | O_RDONLY, 0644, &attr);
     if (client_queue == -1)
     {
-        return -1;
+        return -2;
     }
 
 
@@ -62,7 +62,7 @@ int send_request(request* msg)
     mqd_t mq_server = mq_open("/servidor_queue_9453", O_WRONLY, 0644, &attr);
     if (mq_server == -1)
     {
-        return -1;
+        return -2;
     }
     msg->answer = 0;
     strncpy(msg->client_queue, client, 32);
@@ -83,13 +83,13 @@ int destroy()
     msg.type = 2;
     if(send_request(&msg)< 0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
@@ -111,13 +111,13 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     memcpy(msg.value_2, V_value2, N_value2 * sizeof(double));
     if(send_request(&msg)< 0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
@@ -135,13 +135,13 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     msg.key = key;
     if(send_request(&msg)<0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
@@ -172,13 +172,13 @@ int modify_value(int key,char* value1, int N_value2, double* V_value2,
     memcpy(msg.value_2, V_value2, N_value2 * sizeof(double));
     if(send_request(&msg)<0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
@@ -194,13 +194,13 @@ int delete_key(int key)
     msg.key = key;
     if(send_request(&msg)<0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
@@ -216,13 +216,13 @@ int exist(int key)
     msg.key = key;
     if(send_request(&msg)<0)
     {
-        return -1;
+        return -2;
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -1;
+        return -2;
     }
     if (answer.answer == -1)
     {
