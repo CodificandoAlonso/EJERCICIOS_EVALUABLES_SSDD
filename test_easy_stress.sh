@@ -14,7 +14,6 @@ trap cleanup SIGINT
 ./app-cliente3 &
 
 
-
 wait
 
 exit 0
