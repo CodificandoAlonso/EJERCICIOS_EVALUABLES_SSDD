@@ -1,5 +1,15 @@
-# Ejercicio1_SSDD
-Ejercicio evaluable 1 realizado por Ángela Elena Serrano Casas y Héctor Álvarez Marcos. Esta aplicación es un sistema distribuido a nivel local basado en la implementación sencilla de un Cliente-Servidor. Al cliente se le otorga una API, que le permite realizar operaciones de insercion, busqueda y eliminación sobre una base de datos.
-Para ejecutar la aplicación se realiza un make sobre el directorio principal. Esto genera un ejecutable para el servidor y 4 ejecutables para 4 distintos clientes.
-Los 3 primeros tienen estructura similar, y el 4es una implementaciónd de un cliente "infinito", es decir, un bucle infinito en el que puedes estar solicitando peticiones directamente al servidor todo el rato hasta que quieras.
-Esta práctica se ha dotado de la implementacion de envio por sistema de colas de mensajes POSIX, y utiliza un sistema de almacenamiento de guardado por base de datos sql, implementado gracias a la libreria sqlite3, incluida en C.
+# Ejercicios_evaluables_SSDD
+Ejercicio evaluable 1 realizado por Ángela Elena Serrano Casas y Héctor Álvarez Marcos. Esta aplicación es un sistema
+distribuido, emulando una estructura Cliente-Servidor, en la que se otorga una "api" al cliente para que pueda realizar
+operaciones sobre un sistema de guardado de datos. En nuestro caso el sistema ha sido una base de datos SQL, gestionada
+por un servidor concurrente en el lenguaje de programación C. Este proyecto tiene 3 ramas, 2 de ellas implementando cada
+una un método de comunicación diferente, una mediante colas de mensajes POSIX y otra mediante sockets. La tercera rama,
+implementa el mismo sistema de "Api" pero usando "RPC",que "TOCARA COMPLETAR PARA PARTE 3"
+
+Las distintas ramas están nombradas de esta forma:
+- RAMA-COLAS-POSIX: Implementa colas de mensajes POSIX.
+- RAMA-SOCKETS: Implementa sockets.
+- RAMA-RPC: Implementa RPC.
+
+Para ejecutar el programa, se debe clonar el repositorio y situarse en la rama deseada. Una vez situado en la rama, se 
+tiene un readme con las instrucciones para ejecutar el programa.
