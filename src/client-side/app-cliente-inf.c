@@ -8,15 +8,7 @@
 #include <string.h>
 #include "claves.h"
 
-/*
-typedef struct value_2 {
-    int num_elem;
-    double *array_doubles;
-} value_2;
-*/
-
-
-int main(int argc, char** argv)
+int main()
 {
     char buffer[256];
     printf("WELCOME CLIENT");
@@ -24,7 +16,7 @@ int main(int argc, char** argv)
     {
         printf("\n--------------------------------------------------------------------\n");
         printf("PLEASE, TYPE 'EXIT' TO LOG OUT OR "
-            "'SET_VALUE', 'DESTROY', 'DELETE_KEY', 'MODIFY_VALUE' OR 'GET_VALUE'\n");
+            "'SET_VALUE', 'DESTROY', 'DELETE_KEY', 'MODIFY_VALUE', 'EXIST' OR 'GET_VALUE'\n");
         printf("--------------------------------------------------------------------\n");
         fgets(buffer, sizeof(buffer),stdin);
         if (strcmp(buffer, "EXIT\n") == 0)
@@ -182,7 +174,7 @@ int main(int argc, char** argv)
             fgets(buffer, sizeof(buffer),stdin);
             if ((y = atoi(buffer)) == 0)
             {
-                printf("Era un entero tonto. Mi programa se muere\n");
+                printf("Era un entero. Mi programa se muere\n");
                 return -1;
             }
             temp_coord.x = x;
@@ -213,7 +205,6 @@ int main(int argc, char** argv)
             int N_value2;
             double v2_obtenido[32];
             struct Coord v3_obtenido;
-            printf("\n🔹 PRUEBA 2: Obtener tupla\n");
             if (get_value(key, v1_obtenido, &N_value2, v2_obtenido, &v3_obtenido) == 0) {
                 printf("✅ Tupla obtenida: v1= '%s' ",v1_obtenido);
         		printf("v2= {");
@@ -241,11 +232,15 @@ int main(int argc, char** argv)
                 printf("Era un entero. Mi programa se muere\n");
                 return -1;
             }
-            if (exist(key) == 0) {
-                printf("✅ Key %d existe\n", key);
-            } else {
+            int ex = exist(key);
+            if (ex == 0) {
+                printf("❌ Key %d no existe\n", key);
+            } else if (ex == -1) {
                 printf("❌ Error viendo si key existe\n");
                 return -1;
+            }
+            else {
+                printf("✅ Key %d existe\n", key);
             }
         }
         else

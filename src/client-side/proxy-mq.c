@@ -91,19 +91,17 @@ int destroy()
         perror("Error receiving from the server\n");
         return -2;
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
     return answer.answer;
 }
 
 int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
+    //COMPROBACION DE ERRORES
     if (strlen(value1) > 255 || N_value2 < 1 || N_value2 > 32) return -1;
 
+    //Inicializo estructura a 0
     request msg = {0};
-    msg.type = 1;
+    msg.type = 1; //SET_VALUE
     msg.key = key;
     msg.N_value_2 = N_value2;
     msg.value_3 = value3;
@@ -111,17 +109,13 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     memcpy(msg.value_2, V_value2, N_value2 * sizeof(double));
     if(send_request(&msg)< 0)
     {
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -2;
-    }
-    if (answer.answer == -1)
-    {
-        return -1;
+        return -2; //ERROR EN LA COMUNICACION
     }
     return answer.answer;
 }
@@ -130,24 +124,27 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 
 int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
+    //Inicialización de la estructura a 0
     request msg = {0};
-    msg.type = 5;
+    msg.type = 5;  //GET_VALUE
     msg.key = key;
+
     if(send_request(&msg)<0)
     {
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
     if (answer.answer == -1)
     {
-        return -1;
+        return answer.answer;
     }
-    memcpy(value1, answer.value_1, sizeof(answer.value_1) * sizeof(char));
+    //Copia de los valores en las referencias pasadas com parámetros
+    memcpy(value1, answer.value_1, sizeof(answer.value_1));
     *N_value2 = answer.N_value_2;
     for (int i = 0; i < answer.N_value_2; i++)
     {
@@ -161,6 +158,7 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
 int modify_value(int key,char* value1, int N_value2, double* V_value2,
                  struct Coord value3)
 {
+    //COMPROBACION DE ERRORES
     if (strlen(value1) > 255 || N_value2 < 1 || N_value2 > 32) return -1;
 
     request msg = {0};
@@ -189,6 +187,7 @@ int modify_value(int key,char* value1, int N_value2, double* V_value2,
 
 int delete_key(int key)
 {
+    //INICIALIZACION DE LA ESTRUCTURA A 0
     request msg = {0};
     msg.type = 3; //DELETE_KEY
     msg.key = key;
@@ -200,13 +199,9 @@ int delete_key(int key)
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
-    return 0;
+    return answer.answer;
 }
 
 int exist(int key)
@@ -216,17 +211,14 @@ int exist(int key)
     msg.key = key;
     if(send_request(&msg)<0)
     {
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
+    //INICIALIZACION DE LA ESTRUCTURA A 0
     request answer = {0};
     if (get_response(&answer) < 0)
     {
         perror("Error receiving from the server\n");
-        return -2;
+        return -2; //ERROR EN LA COMUNICACION
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
-    return 0;
+    return answer.answer;
 }

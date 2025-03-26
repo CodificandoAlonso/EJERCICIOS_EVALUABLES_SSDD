@@ -64,8 +64,18 @@ int main() {
     } else {
         printf("❌ Error al eliminar la tupla\n");
     }
-
-    printf("\n🔹 PRUEBA 5: Eliminar TODAS las tuplas con destroy()\n");
+    printf("\n🔹 PRUEBA 5: Ver si existe la tupla con exist()\n");
+    int ex = exist(79);
+    if (ex == 0) {
+        printf("❌ Error. La tupla no existe\n");
+    }
+    else if (ex ==1){
+        printf("✅ Tupla existe\n");
+    }
+    else {
+        printf("❌Error al verificar si la tupla existe\n");
+    }
+    printf("\n🔹 PRUEBA 6: Eliminar TODAS las tuplas con destroy()\n");
     if (destroy() == 0) {
         printf("✅ Base de datos limpiada correctamente\n");
     } else {

@@ -1,5 +1,6 @@
 #include "claves.h"
 
+#include <pthread.h>
 #include<stdio.h>
 #include<sqlite3.h>
 #include <stdlib.h>
@@ -24,6 +25,8 @@ sqlite3* database;
 int destroy()
 {
     //sqlite3 *database;
+    
+    sqlite3_config(SQLITE_CONFIG_MULTITHREAD);
     int create_database = sqlite3_open("/tmp/database.db", &database);
     if (create_database != SQLITE_OK)
     {
@@ -38,21 +41,25 @@ int destroy()
         sqlite3_close(database);
         return -1;
     }
-
+    
     char* delete_data_table = "DELETE from data;";
     if (sqlite3_exec(database, delete_data_table, NULL, NULL, NULL) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR deleting tables\n");
         sqlite3_close(database);
+        
         return -1;
     }
+
     // Verificar si realmente se eliminó una fila
     if (sqlite3_changes(database) == 0)
     {
         printf("Database is already clean, no rows deleted\n");
         sqlite3_close(database);
+        
         return -1;
     }
+    
 
     sqlite3_close(database);
     return 0;
@@ -79,6 +86,7 @@ int destroy()
  */
 int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
+    
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
     int create_database = sqlite3_open("/tmp/database.db", &database);
     if (create_database != SQLITE_OK)
@@ -93,23 +101,28 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     char local_value1[256];
     memcpy(local_value1, value1, strlen(value1));
 
+
     //Insertar los primeros parametros en data
     sprintf(insert,
             "INSERT into data(data_key, value1,x,y) "
             " VALUES(%d, '%s', %d ,%d);", key, value1, value3.x, value3.y);
     int test;
+    
     if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
     {
         if (test != SQLITE_CONSTRAINT)
         {
+            
             fprintf(stderr, "ERROR inserting in primary table %s\n", sqlite3_errmsg(database));
             sqlite3_close(database);
             return -1;
         }
+        
         fprintf(stderr, "Error PK duplicated with associated key: %d\n", key);
         sqlite3_close(database);
         return -1;
     }
+    
     if (N_value2 > 32)
     {
         fprintf(stderr, "Too many arguments in value2\n");
@@ -124,20 +137,23 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
         sprintf(insert,
                 "INSERT into value2_all(id, data_key_fk, value) "
                 " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
+        
         if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
         {
             if (test != SQLITE_CONSTRAINT)
             {
+                
                 fprintf(stderr, "ERROR inserting in secondary table.\n");
                 sqlite3_close(database);
                 return -1;
             }
+            
             fprintf(stderr, "Error PK duplicated in secondary table.\n");
             sqlite3_close(database);
             return -1;
         }
     }
-
+    
     sqlite3_close(database);
     return 0;
 }
@@ -164,6 +180,7 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
     //sqlite3 *database;
+    
     int create_database = sqlite3_open("/tmp/database.db", &database);
     if (create_database != SQLITE_OK)
     {
@@ -174,26 +191,34 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     char query[256];
     sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
     receive_sql receive = {0};
+    
     if (sqlite3_exec(database, query, recall_row_data, (void*)&receive, NULL) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR executing query\n");
         sqlite3_close(database);
+        
         return -1;
     }
     //controlador a modo de "flag" por si no se devuelve ninguna fila
     if (receive.empty == 0)
     {
+        
         sqlite3_close(database);
         return -1;
     }
     receive.empty = 0;
+    
+
     sprintf(query, "SELECT value FROM value2_all WHERE data_key_fk == %d;", key);
+    
     if (sqlite3_exec(database, query, recall_row_value2_all, (void*)&receive, NULL) != SQLITE_OK)
     {
+        
         fprintf(stderr, "ERROR executing query\n");
         sqlite3_close(database);
         return -1;
     }
+    
     if (receive.empty == 0)
     {
         sqlite3_close(database);
@@ -256,6 +281,7 @@ int modify_value(int key, char* value1, int N_value2, double* V_value2, struct C
  */
 int delete_key(int key)
 {
+    
     //sqlite3 *database;
     int create_database = sqlite3_open("/tmp/database.db", &database);
     if (create_database != SQLITE_OK)
@@ -265,6 +291,7 @@ int delete_key(int key)
     }
 
     char* message_error = NULL;
+
     // Habilitar las foreign keys para mejor manejo de la base de datos
     if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
     {
@@ -276,17 +303,19 @@ int delete_key(int key)
     // Nueva consulta preparada
     char delete_query[256];
     sprintf(delete_query, "DELETE FROM data WHERE data_key == %d;", key);
-
+    
     if (sqlite3_exec(database, delete_query, NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "Error deleting key %s", message_error);
         sqlite3_close(database);
+        
         return -1;
     }
     if (sqlite3_changes(database) == 0)
     {
         printf("Key %d does not exist, no rows deleted\n", key);
         sqlite3_close(database);
+        
         return -1;
     }
     printf("Key %d erased correctly\n", key);
@@ -307,7 +336,7 @@ int delete_key(int key)
  */
 int exist(int key)
 {
-    int create_database = sqlite3_open("database.db", &database);
+    int create_database = sqlite3_open("/tmp/database.db", &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
