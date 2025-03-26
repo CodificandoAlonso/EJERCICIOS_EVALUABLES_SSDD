@@ -3,3 +3,4 @@
 .idea
 vgcore.*
 cmake-build-*
+vgcore*

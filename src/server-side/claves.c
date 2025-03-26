@@ -13,7 +13,7 @@
 
 sqlite3* database;
 
-
+pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
 /**
  * @brief Esta llamada permite inicializar el servicio de elementos clave-valor1-valor2-valor3.
  * Mediante este servicio se destruyen todas las tuplas que estuvieran almacenadas previamente.
@@ -35,17 +35,24 @@ int destroy()
     }
     char* message_error = NULL;
     // Habilitar las foreign keys para mejor manejo de la base de datos
+    /*
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "Error with the fk definition %s", message_error);
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         return -1;
     }
-    
+    pthread_mutex_unlock(&ddbb_mutex);
+
+     */
     char* delete_data_table = "DELETE from data;";
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, delete_data_table, NULL, NULL, NULL) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR deleting tables\n");
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         
         return -1;
@@ -55,12 +62,12 @@ int destroy()
     if (sqlite3_changes(database) == 0)
     {
         printf("Database is already clean, no rows deleted\n");
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         
         return -1;
     }
-    
-
+    pthread_mutex_unlock(&ddbb_mutex);
     sqlite3_close(database);
     return 0;
 }
@@ -101,28 +108,43 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     char local_value1[256];
     memcpy(local_value1, value1, strlen(value1));
 
+    char* message_error = NULL;
+	// Habilitar las foreign keys para mejor manejo de la base de datos
+    /*
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        pthread_mutex_unlock(&ddbb_mutex);
+        sqlite3_close(database);
+        return -1;
+    }
+    pthread_mutex_unlock(&ddbb_mutex);
 
+     */
     //Insertar los primeros parametros en data
     sprintf(insert,
             "INSERT into data(data_key, value1,x,y) "
             " VALUES(%d, '%s', %d ,%d);", key, value1, value3.x, value3.y);
     int test;
-    
+    printf("ENTRO MUTEX\n");
+    pthread_mutex_lock(&ddbb_mutex);
     if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
     {
         if (test != SQLITE_CONSTRAINT)
         {
-            
             fprintf(stderr, "ERROR inserting in primary table %s\n", sqlite3_errmsg(database));
+            pthread_mutex_unlock(&ddbb_mutex);
             sqlite3_close(database);
             return -1;
         }
-        
+        pthread_mutex_unlock(&ddbb_mutex);
         fprintf(stderr, "Error PK duplicated with associated key: %d\n", key);
         sqlite3_close(database);
         return -1;
     }
-    
+    printf("SALGO MUTEX\n");
+    pthread_mutex_unlock(&ddbb_mutex);
     if (N_value2 > 32)
     {
         fprintf(stderr, "Too many arguments in value2\n");
@@ -137,23 +159,24 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
         sprintf(insert,
                 "INSERT into value2_all(id, data_key_fk, value) "
                 " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
-        
+        pthread_mutex_lock(&ddbb_mutex);
         if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
         {
             if (test != SQLITE_CONSTRAINT)
             {
-                
+                pthread_mutex_unlock(&ddbb_mutex);
                 fprintf(stderr, "ERROR inserting in secondary table.\n");
                 sqlite3_close(database);
                 return -1;
             }
-            
+            pthread_mutex_unlock(&ddbb_mutex);
             fprintf(stderr, "Error PK duplicated in secondary table.\n");
             sqlite3_close(database);
             return -1;
         }
+        pthread_mutex_unlock(&ddbb_mutex);
     }
-    
+    printf("SALGO MUTEX\n");
     sqlite3_close(database);
     return 0;
 }
@@ -191,14 +214,15 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     char query[256];
     sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
     receive_sql receive = {0};
-    
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, query, recall_row_data, (void*)&receive, NULL) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR executing query\n");
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
-        
         return -1;
     }
+    pthread_mutex_unlock(&ddbb_mutex);
     //controlador a modo de "flag" por si no se devuelve ninguna fila
     if (receive.empty == 0)
     {
@@ -210,15 +234,15 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     
 
     sprintf(query, "SELECT value FROM value2_all WHERE data_key_fk == %d;", key);
-    
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, query, recall_row_value2_all, (void*)&receive, NULL) != SQLITE_OK)
     {
-        
+        pthread_mutex_unlock(&ddbb_mutex);
         fprintf(stderr, "ERROR executing query\n");
         sqlite3_close(database);
         return -1;
     }
-    
+    pthread_mutex_unlock(&ddbb_mutex);
     if (receive.empty == 0)
     {
         sqlite3_close(database);
@@ -293,31 +317,39 @@ int delete_key(int key)
     char* message_error = NULL;
 
     // Habilitar las foreign keys para mejor manejo de la base de datos
+    /*
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "Error with the fk definition %s", message_error);
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         return -1;
     }
 
+	pthread_mutex_unlock(&ddbb_mutex);
+     */
     // Nueva consulta preparada
     char delete_query[256];
     sprintf(delete_query, "DELETE FROM data WHERE data_key == %d;", key);
-    
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, delete_query, NULL, NULL, &message_error) != SQLITE_OK)
     {
         fprintf(stderr, "Error deleting key %s", message_error);
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         
         return -1;
     }
     if (sqlite3_changes(database) == 0)
     {
+      	pthread_mutex_unlock(&ddbb_mutex);
         printf("Key %d does not exist, no rows deleted\n", key);
         sqlite3_close(database);
         
         return -1;
     }
+    pthread_mutex_unlock(&ddbb_mutex);
     printf("Key %d erased correctly\n", key);
     sqlite3_close(database);
     return 0;
@@ -345,12 +377,15 @@ int exist(int key)
     char query[256];
     sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
     receive_sql receive = {0};
+    pthread_mutex_lock(&ddbb_mutex);
     if (sqlite3_exec(database, query, recall_row_data, (void*)&receive, NULL) != SQLITE_OK)
     {
         fprintf(stderr, "ERROR executing query\n");
+        pthread_mutex_unlock(&ddbb_mutex);
         sqlite3_close(database);
         return -1;
     }
+    pthread_mutex_unlock(&ddbb_mutex);
     if (receive.empty == 0)
     {
         return 0;
