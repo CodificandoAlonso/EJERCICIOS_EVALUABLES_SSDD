@@ -1,7 +1,6 @@
 #define _GNU_SOURCE  //define necesario para poder usar join no bloqueante de hilos
 #include<stdio.h>
 #include<pthread.h>
-#include<mqueue.h>
 #include<stdlib.h>
 #include<sqlite3.h>
 #include<errno.h>
@@ -9,17 +8,21 @@
 #include <string.h>
 #include "struct.h"
 #include "claves.h"
+#include "socket_message.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 
 #define MAX_THREADS 25
 
 //Inicializador global de los fd para la bbdd y la queue del servidor
 sqlite3* database_server = 0;
-mqd_t server_queue = 0;
 
 
 //Creación de hilos, arrays de hilos y contador de hilos ocupados
 pthread_t thread_pool[MAX_THREADS];
+int sc[MAX_THREADS];
 int free_threads_array[MAX_THREADS];
 
 //Inicializador de mutex para la copia local de parámetros, la gestión de la bbdd y variable condicion
@@ -44,32 +47,12 @@ void pad_array()
 }
 
 /**
- *@brief Esta función se usa para enviar el mensaje de vuelta al cliente, recibe como parametros la estructura request
+ *@brief Esta función se usa para enviar el mensaje de vuelta al cliente, recibe como parametros el socket y la estructura request
  * y con ella envia los datos. es invocada por cada hilo en la funcion process request.
  */
-int answer_back(request* params)
+int answer_back(int socket, request* params)
 {
-    struct mq_attr attr = {0};
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 8; // Máximo 10 mensajes en la cola
-    attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
-    attr.mq_curmsgs = 0;
-    mqd_t client_queue;
-    char name[32];
-    //Name nunca pued ser mayor que 32, de ahi el .18s
-    snprintf(name, sizeof(name), "client_queue_%.18s", params->client_queue);
-    client_queue = mq_open(params->client_queue,O_CREAT | O_WRONLY, 0644, &attr);
-    if (client_queue < 0)
-    {
-        printf("Error opening clients queue\n");
-        return -2;
-    }
-    if (mq_send(client_queue, (char*)params, sizeof(request), 0) == -1)
-    {
-        printf("Error sending\n");
-        return -2;
-    }
-    return 0;
+    return send_message(socket, params);
 }
 
 
@@ -81,13 +64,21 @@ int answer_back(request* params)
  *local de los datos se encargará de gestionar las distintas llamadas de claves.c para realizar las gestiones
  *en la base de datos correspondiente
  */
-int process_request(request* request_received)
+int process_request(parameters_to_pass *socket)
 {
     pthread_mutex_lock(&mutex_copy_params);
-    request local_request = *request_received;
+    int socket_id = socket->identifier;
     free_mutex_copy_params_cond = 1;
     pthread_cond_signal(&cond_wait_cpy);
     pthread_mutex_unlock(&mutex_copy_params);
+
+    request local_request = {0};
+    int message = receive_message(sc[socket_id], &local_request);
+    if (message < 0)
+    {
+        pthread_exit(0);
+    }
+    printf("Value 1 es %s\n", local_request.value_1);
     switch (local_request.type)
     {
     case 1: //INSERT
@@ -97,8 +88,7 @@ int process_request(request* request_received)
         {
             printf("ERROR inserting, failure was detected\n");
         }
-        answer_back(&local_request);
-
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
     case 2: // DELETE (destroy)
         local_request.answer = destroy();
@@ -106,7 +96,7 @@ int process_request(request* request_received)
         {
             printf("ERROR erasing tuples with destroy()\n");
         }
-        answer_back(&local_request);
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
     case 3: // DELETE_KEY (delete_key)
         local_request.answer = delete_key(local_request.key);
@@ -114,7 +104,7 @@ int process_request(request* request_received)
         {
             printf("ERROR erasing key %d with delete_key()\n", local_request.key);
         }
-        answer_back(&local_request);
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
     case 4: // MODIFY
         local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2,
@@ -123,7 +113,7 @@ int process_request(request* request_received)
         {
             printf("ERROR modifying key %d with modify_value()\n", local_request.key);
         }
-        answer_back(&local_request);
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
 
     case 5: // GET_VALUE
@@ -133,17 +123,15 @@ int process_request(request* request_received)
         {
             printf("ERROR obtaining key %d with get_value()\n", local_request.key);
         }
-        answer_back(&local_request);
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
     case 6: //EXIST
-        //pthread_mutex_lock(&ddbb_mutex);
         local_request.answer = exist(local_request.key);
-        //pthread_mutex_unlock(&ddbb_mutex);
         if (local_request.answer == -1)
         {
             printf("ERROR verifying key %d with exist()\n", local_request.key);
         }
-        answer_back(&local_request);
+        answer_back(sc[socket_id],&local_request);
         pthread_exit(0);
     default:
         pthread_exit(0);
@@ -215,14 +203,24 @@ void safe_close(int ctrlc)
     printf("\n-----------------------------------------------\n");
     printf("\nEXIT SIGNAL RECEIVED. CLOSING ALL AND GOODBYE\n");
     printf("-----------------------------------------------\n");
-    mq_close(server_queue);
-    mq_unlink("/servidor_queue_9453");
     exit(0);
 }
 
 
-int main(int argc, char* argv[])
+int main(int argc, char **argv)
 {
+
+    if(argc < 2)
+    {
+        perror("Server port not indicated\n");
+        exit(-2);
+    }
+    int port_num = atoi(argv[1]);
+    if(port_num <= 0 || port_num > 65535)
+    {
+        perror("Bad port\n");
+        return -1;
+    }
     //Inicializo la signal para tratar el crtl c y realizar un cierre seguro de la aplicacion
     signal(SIGINT, safe_close);
 
@@ -245,34 +243,55 @@ int main(int argc, char* argv[])
     pad_array();
 
 
-    //Inicializo la estructura de la cola de mensajes.
-    struct mq_attr attr = {0};
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 10; // Máximo 10 mensajes en la cola
-    attr.mq_msgsize = sizeof(request); // Tamaño del mensaje debe ser igual al struct
-    attr.mq_curmsgs = 0;
-
+    //Inicializo lo necesario para los socketss.
+    struct sockaddr_in server_addr,  client_addr;
+    socklen_t size;
+    int sd, val = 0;
+    int err;
 
     //inicializacion mutex para la copia local de parametros
     pthread_mutex_init(&mutex_copy_params, NULL);
     pthread_cond_init(&cond_wait_cpy, NULL);
-    //pthread_mutex_init(&ddbb_mutex, NULL);
 
 
-    //Inicializo y abro la cola del servidor
-    mqd_t server_queue;
-    char* nombre = "/servidor_queue_9453";
-    server_queue = mq_open(nombre, O_CREAT | O_RDWR | O_NONBLOCK, 0644, &attr);
-    if (server_queue == -1)
-    {
-        mq_close(server_queue);
-        fprintf(stderr, "Error opening server queue. Error code: %s\n", strerror(errno));
-        exit(-1);
+
+    if ((sd =  socket(AF_INET, SOCK_STREAM, 0))<0){
+        printf ("Error creating socket");
+        exit(-2);
+    }
+    val = 1;
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &val, sizeof(int));
+
+    bzero((char *)&server_addr, sizeof(server_addr));
+    char *ip_str = getenv("IP_TUPLAS");
+    if (!ip_str){
+        fprintf(stderr, "ENV variable 'IP_TUPLAS' not defined\n");
+        exit(-2);
     }
 
+    bzero((char *)&server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons((uint16_t)port_num);
+    if(inet_aton(ip_str, &server_addr.sin_addr) == 0){
+        fprintf(stderr, "Invalid IP Adress\n");
+        exit(-2);
+    }
+
+    err = bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    if (err == -1)
+    {
+        printf("Error on bind\n");
+        return -1;
+    }
+    err = listen(sd, SOMAXCONN);
+    if (err == -1) {
+        printf("Error on listen\n");
+        return -1;
+    }
 
     //Me creo la estructura request para manejar las peticiones
-    request new_request;
+    parameters_to_pass socket_id = {0};
+    int sc_temp = 0;
     //Gestion de la concurrencia con las peticiones
     printf("SERVER ACTIVE. WAITING FOR REQUESTS............\n");
     while (1)
@@ -286,16 +305,16 @@ int main(int argc, char* argv[])
                 if (pthread_tryjoin_np(thread_pool[i], NULL) == 0)
                 {
                     free_threads_array[i] = 0; //Al ruedo de nuevo, maquina
+                    close(sc[i]);   //Cerramos el sc
                     workload--; // Avisar de que se puede currar
                     printf("Thread %d free and ready to reuse\n", i);
                 }
             }
         }
         //Veo si hay mensajes
-        ssize_t message = mq_receive(server_queue, (char*)&new_request, sizeof(request), 0);
-        if (message >= 0)
+        sc_temp = accept(sd, (struct sockaddr *)&client_addr, (socklen_t *)&size);
+        if (sc_temp >= 0)
         {
-            printf("Message received with id %d\n", new_request.key);
 
             //Miro el primer hilo disponible y le mando currar.
             for (int i = 0; i < MAX_THREADS; i++)
@@ -303,10 +322,11 @@ int main(int argc, char* argv[])
                 if (free_threads_array[i] == 0)
                 {
                     free_threads_array[i] = 1;
+                    sc[i] = sc_temp;
                     workload++;
                     printf("Thread %d is now working\n", i);
-
-                    if (pthread_create(&thread_pool[i],NULL, (void*)process_request, &new_request) == 0)
+                    socket_id.identifier = i;
+                    if (pthread_create(&thread_pool[i],NULL, (void*)process_request, &socket_id) == 0)
                     {
                         pthread_mutex_lock(&mutex_copy_params);
                         while (free_mutex_copy_params_cond == 0)
@@ -314,10 +334,17 @@ int main(int argc, char* argv[])
                         free_mutex_copy_params_cond = 0;
                         pthread_mutex_unlock(&mutex_copy_params);
                     }
+                    else
+                    {
+                        perror("Error creating thread\n");
+                        exit(-1);
+                    }
                     break;
                 }
+
                 //En caso de que no se pueda trabajar porque no hay hilos disponibles, en vez de hacer un wait, como
                 //el mensaje ha sido leido ya, lo reenvio a la cola
+                /*
                 if (workload == MAX_THREADS)
                 {
                     message = mq_send(server_queue, (char*)&new_request, sizeof(request), 0);
@@ -328,11 +355,8 @@ int main(int argc, char* argv[])
                     printf("Back in queue again with id: %d\n", new_request.key);
                     usleep(500);
                 }
+                */
             }
-        }
-        //en caso de no recibir, como es un mq_receive no bloqueante, que no lo cuente como error.
-        else if (errno == EAGAIN)
-        {
         }
         else
         {
@@ -341,5 +365,4 @@ int main(int argc, char* argv[])
             exit(-2);
         }
     }
-    return 0;
 }

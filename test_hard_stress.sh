@@ -29,6 +29,25 @@ trap cleanup SIGINT
 ./app-cliente2 &
 ./app-cliente3 &
 ./app-cliente &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
+./app-cliente2 &
+./app-cliente3 &
+./app-cliente &
 
 
 wait

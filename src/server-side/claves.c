@@ -32,15 +32,6 @@ int destroy()
         return -1;
     }
     char* message_error = NULL;
-    // Habilitar las foreign keys para mejor manejo de la base de datos
-    /*
-    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
-    {
-        fprintf(stderr, "Error with the fk definition %s", message_error);
-        sqlite3_close(database);
-        return -1;
-    }
-    */
 
     char* delete_data_table = "DELETE from data;";
     pthread_mutex_lock(&ddbb_mutex);
@@ -284,16 +275,6 @@ int delete_key(int key)
     }
 
     char* message_error = NULL;
-    // Habilitar las foreign keys para mejor manejo de la base de datos
-    /*
-    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
-    {
-        fprintf(stderr, "Error with the fk definition %s", message_error);
-        sqlite3_close(database);
-        return -1;
-    }
-    */
-
     // Nueva consulta preparada
     char delete_query[256];
     sprintf(delete_query, "DELETE FROM data WHERE data_key == %d;", key);

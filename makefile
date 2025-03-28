@@ -4,13 +4,13 @@ INCLUDES = -I src/structs
 
 
 #SERVIDOR
-SERVER_SRCS = src/server-side/servidor-sock.c src/server-side/claves.c src/server-side/treat_sql.c
+SERVER_SRCS = src/server-side/servidor-sock.c src/server-side/claves.c src/server-side/treat_sql.c src/common/socket_message.c
 SERVER_OBJS = $(SERVER_SRCS:.c=.o)
 SERVER_BIN  = servidor
 
 
 #CLIENTE-libclaves
-CLIENT_LIB_SRCS = src/client-side/proxy-sock.c
+CLIENT_LIB_SRCS = src/client-side/proxy-sock.c src/common/socket_message.c
 CLIENT_LIB_OBJS = $(CLIENT_LIB_SRCS:.c=.o)
 LIB_NAME = src/client-side/libclaves.so
 

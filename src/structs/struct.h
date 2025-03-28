@@ -32,7 +32,6 @@ typedef struct request {
  */
 typedef struct parameters_to_pass_threads
 {
-    request* this_request;
     int identifier;
 } parameters_to_pass;
 

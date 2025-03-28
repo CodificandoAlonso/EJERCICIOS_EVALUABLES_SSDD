@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <mqueue.h>
+#include <socket_message.h>
 #include <unistd.h>
-
 #include "claves.h"
 #include "struct.h"
-#define MQ_SERVER_NAME "/servidor_queue_9453"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #define MAX_MSG_SIZE 1024
 
 /**
@@ -14,33 +16,54 @@
  * Esta función se encarga de recoger la respuesta del servidor y devolverla en forma de estructura
  * a la función correspondiente, de cara a devolver los valores adecuados al cliente.
  */
-int get_response(request* answer)
+int get_response(int socket, request* answer)
 {
-    struct mq_attr attr;
+    return receive_message(socket, answer);
+}
 
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 10;
-    attr.mq_msgsize = sizeof(request);
-    attr.mq_curmsgs = 0;
 
-    char client[32];
-    sprintf(client, "/client_queue_%d", getpid());
-    const mqd_t client_queue = mq_open(client, O_CREAT | O_RDONLY, 0644, &attr);
-    if (client_queue == -1)
-    {
+/**
+ * @brief
+ * Esta función se encarga de inicializar la conexión al socket que usará el cliente para comunicarse con el servidor.
+ * Utiliza como ip y puerto las generadas por las variables de entorno de la terminal en la que se ejecutanç
+ */
+int connect_socket_to_server()
+{
+    int sock = 0;
+    struct sockaddr_in server_addr = {0};
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        perror("Error creating socket");
         return -2;
     }
 
-
-    const ssize_t message = mq_receive(client_queue, (char*)answer, sizeof(request), 0);
-    if (message < 0)
-    {
-        printf("Error receiving from the server\n");
+    //Puerto e ip del servidor
+    bzero((char *)&server_addr, sizeof(server_addr));
+    char *ip_str = getenv("IP_TUPLAS");
+    char *port_str = getenv("PORT_TUPLAS");
+    if (!ip_str || !port_str){
+        fprintf(stderr, "ENV Variables IP_TUPLAS o PORT_TUPLAS not defined\n");
         return -2;
     }
-    mq_close(client_queue);
-    mq_unlink(client);
-    return 0;
+    int port_num = atoi(port_str);
+    if (port_num <= 0 || port_num > 65535){
+        fprintf(stderr, "Invalid port\n");
+        return -2;
+    }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port_num);
+    if(inet_aton(ip_str, &server_addr.sin_addr) == 0){
+        fprintf(stderr, "Invalid IP Adress\n");
+        exit(-2);
+    }
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Error connecting\n");
+        close(sock);
+        return -2;
+    }
+    return sock;
 }
 
 /**
@@ -48,31 +71,13 @@ int get_response(request* answer)
  * Esta función se encarga de enviar las peticiones al srevidor. Es invocada por todos los servicios
  * ofrecidos por claves dentro de proxy-mq.
  */
-int send_request(request* msg)
+int send_request(int sock, request* msg)
 {
-    struct mq_attr attr;
-
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = 10;
-    attr.mq_msgsize = sizeof(request);
-    attr.mq_curmsgs = 0;
-
-    char client[32];
-    sprintf(client, "/client_queue_%d", getpid());
-    mqd_t mq_server = mq_open("/servidor_queue_9453", O_WRONLY, 0644, &attr);
-    if (mq_server == -1)
-    {
-        return -2;
-    }
     msg->answer = 0;
-    strncpy(msg->client_queue, client, 32);
-    if (mq_send(mq_server, (char*)msg, sizeof(request), 0) == -1)
+    if(send_message(sock,msg)< 0)
     {
-        perror("Error comunicating central server\n");
-        mq_close(mq_server);
         return -2;
     }
-    mq_close(mq_server);
     return 0;
 }
 
@@ -81,12 +86,17 @@ int destroy()
 {
     request msg = {0};
     msg.type = 2;
-    if(send_request(&msg)< 0)
+    int sock = connect_socket_to_server();
+    if (sock < 0)
+    {
+        return -2;
+    }
+    if(send_request(sock,&msg)< 0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
@@ -105,12 +115,17 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     msg.value_3 = value3;
     strncpy(msg.value_1, value1, 255);
     memcpy(msg.value_2, V_value2, N_value2 * sizeof(double));
-    if(send_request(&msg)< 0)
+    int sock = connect_socket_to_server();
+    if (sock < 0)
+    {
+        return -2;
+    }
+    if(send_request(sock,&msg)< 0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
@@ -125,12 +140,17 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     request msg = {0};
     msg.type = 5;
     msg.key = key;
-    if(send_request(&msg)<0)
+    int sock = connect_socket_to_server();
+    if (sock < 0)
+    {
+        return -2;
+    }
+    if(send_request(sock,&msg)<0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
@@ -162,12 +182,17 @@ int modify_value(int key,char* value1, int N_value2, double* V_value2,
     msg.value_3 = value3;
     strncpy(msg.value_1, value1, 255);
     memcpy(msg.value_2, V_value2, N_value2 * sizeof(double));
-    if(send_request(&msg)<0)
+    int sock = connect_socket_to_server();
+    if (sock < 0)
+    {
+        return -2;
+    }
+    if(send_request(sock,&msg)<0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
@@ -180,12 +205,13 @@ int delete_key(int key)
     request msg = {0};
     msg.type = 3; //DELETE_KEY
     msg.key = key;
-    if(send_request(&msg)<0)
+    int sock = connect_socket_to_server();
+    if(send_request(sock,&msg)<0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
@@ -198,12 +224,13 @@ int exist(int key)
     request msg = {0};
     msg.type = 6; //EXIST
     msg.key = key;
-    if(send_request(&msg)<0)
+    int sock = connect_socket_to_server();
+    if(send_request(sock,&msg)<0)
     {
         return -2;
     }
     request answer = {0};
-    if (get_response(&answer) < 0)
+    if (get_response(sock,&answer) < 0)
     {
         perror("Error receiving from the server\n");
         return -2;
