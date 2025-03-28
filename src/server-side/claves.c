@@ -25,13 +25,23 @@ pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
 int destroy()
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
     char* message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        sqlite3_close(database);
+        return -4;
+    }
 
     char* delete_data_table = "DELETE from data;";
     pthread_mutex_lock(&ddbb_mutex);
@@ -77,15 +87,23 @@ int destroy()
 int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
     sqlite3* database;
-    //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
-
-    char* error_message = NULL;
+    char *message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        sqlite3_close(database);
+        return -4;
+    }
     value1[strcspn(value1, "\r\n")] = 0;
     char insert[256];
     char local_value1[256];
@@ -97,7 +115,7 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
             " VALUES(%d, '%s', %d ,%d);", key, value1, value3.x, value3.y);
     int test;
     pthread_mutex_lock(&ddbb_mutex);
-    if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
+    if ((test = sqlite3_exec(database, insert, NULL, NULL, &message_error)) != SQLITE_OK)
     {
         if (test != SQLITE_CONSTRAINT)
         {
@@ -127,7 +145,7 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
                 "INSERT into value2_all(id, data_key_fk, value) "
                 " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
         pthread_mutex_lock(&ddbb_mutex);
-        if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
+        if ((test = sqlite3_exec(database, insert, NULL, NULL, &message_error)) != SQLITE_OK)
         {
             if (test != SQLITE_CONSTRAINT)
             {
@@ -170,7 +188,10 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -267,14 +288,24 @@ int modify_value(int key, char* value1, int N_value2, double* V_value2, struct C
 int delete_key(int key)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
         return -1;
     }
 
-    char* message_error = NULL;
+    char *message_error = NULL;
+    //Habilitar las foreign keys para mejor manejo de la base de datos
+    if (sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error with the fk definition %s", message_error);
+        sqlite3_close(database);
+        return -4;
+    }
     // Nueva consulta preparada
     char delete_query[256];
     sprintf(delete_query, "DELETE FROM data WHERE data_key == %d;", key);
@@ -313,7 +344,10 @@ int delete_key(int key)
 int exist(int key)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");

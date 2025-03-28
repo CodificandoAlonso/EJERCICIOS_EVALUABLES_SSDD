@@ -13,7 +13,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-
 #define MAX_THREADS 25
 
 //Inicializador global de los fd para la bbdd y la queue del servidor
@@ -78,7 +77,6 @@ int process_request(parameters_to_pass *socket)
     {
         pthread_exit(0);
     }
-    printf("Value 1 es %s\n", local_request.value_1);
     switch (local_request.type)
     {
     case 1: //INSERT
@@ -226,7 +224,10 @@ int main(int argc, char **argv)
 
     //Creando e inicializando la base de datos
     sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    int create_database = sqlite3_open("/tmp/database.db", &database_server);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database_server);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -341,21 +342,6 @@ int main(int argc, char **argv)
                     }
                     break;
                 }
-
-                //En caso de que no se pueda trabajar porque no hay hilos disponibles, en vez de hacer un wait, como
-                //el mensaje ha sido leido ya, lo reenvio a la cola
-                /*
-                if (workload == MAX_THREADS)
-                {
-                    message = mq_send(server_queue, (char*)&new_request, sizeof(request), 0);
-                    if (message < 0)
-                    {
-                        exit(-2);
-                    }
-                    printf("Back in queue again with id: %d\n", new_request.key);
-                    usleep(500);
-                }
-                */
             }
         }
         else

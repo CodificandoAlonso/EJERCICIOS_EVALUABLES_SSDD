@@ -68,9 +68,11 @@ $(CLIENT_INF_BIN): $(CLIENT_INF_APP_OBJS) $(LIB_NAME)
 %.o: %.c
 	$(compiler) $(CFLAGS) -c $< -o $@
 
+USER_NAME := $(shell whoami)
+
 #LIMPIA; ME LO CARGO TODO
 clean:
 	rm -f $(SERVER_OBJS) $(CLIENT_LIB_OBJS) $(CLIENT1_APP_OBJS) $(CLIENT2_APP_OBJS) $(CLIENT3_APP_OBJS) \
 			$(CLIENT_INF_APP_OBJS) \
 	      $(SERVER_BIN) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT_INF_BIN) $(LIB_NAME)
-	rm -r /tmp/database.db
+	rm -rf /tmp/database-$(USER_NAME).db
