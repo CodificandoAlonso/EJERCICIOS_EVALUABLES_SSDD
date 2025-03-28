@@ -2,6 +2,7 @@
 # Función llamada por la señal SIGINT configurada con trap
 cleanup() {
     echo "Interrumpido. Matando procesos..."
+    rm -rf /dev/mqueue/client*
     pkill -P $$  # Mata todos los procesos hijos del script
     exit 1
 }
@@ -28,6 +29,7 @@ trap cleanup SIGINT
 ./app-cliente2 &
 ./app-cliente3 &
 ./app-cliente &
+
 
 wait
 

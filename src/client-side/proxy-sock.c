@@ -91,10 +91,6 @@ int destroy()
         perror("Error receiving from the server\n");
         return -2;
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
     return answer.answer;
 }
 
@@ -118,10 +114,6 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
     {
         perror("Error receiving from the server\n");
         return -2;
-    }
-    if (answer.answer == -1)
-    {
-        return -1;
     }
     return answer.answer;
 }
@@ -180,10 +172,6 @@ int modify_value(int key,char* value1, int N_value2, double* V_value2,
         perror("Error receiving from the server\n");
         return -2;
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
     return answer.answer;
 }
 
@@ -202,11 +190,7 @@ int delete_key(int key)
         perror("Error receiving from the server\n");
         return -2;
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
-    return 0;
+    return answer.answer;
 }
 
 int exist(int key)
@@ -224,9 +208,5 @@ int exist(int key)
         perror("Error receiving from the server\n");
         return -2;
     }
-    if (answer.answer == -1)
-    {
-        return -1;
-    }
-    return 0;
+    return answer.answer;
 }
