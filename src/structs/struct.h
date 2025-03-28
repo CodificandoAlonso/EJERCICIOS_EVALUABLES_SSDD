@@ -19,7 +19,6 @@ typedef struct request {
     double value_2[32];
     struct Coord value_3;
     int answer;
-    char client_queue[32];
 }request;
 
 
