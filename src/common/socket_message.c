@@ -5,9 +5,10 @@
 #include "struct.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <netinet/in.h>
-
+#include <inttypes.h>
 
 int isBigEndian(void) {
     unsigned int num = 1;
@@ -19,13 +20,20 @@ int isBigEndian(void) {
 }
 
 double swap_endian(double value) {
-  /*
-    return *(double*)((uint64_t[]){ __builtin_bswap64(*(uint64_t*)&value) });
-
-   */
-    return __builtin_bswap64(*(uint64_t*)&value);
-
-
+    print_double_hex(value);
+    uint8_t *temp = (uint8_t *)&value;
+    char tete[8];
+    tete[0] = *(temp + 7);
+    tete[1] = *(temp + 6);
+    tete[2] = *(temp + 5);
+    tete[3] = *(temp + 4);
+    tete[4] = *(temp + 3);
+    tete[5] = *(temp + 2);
+    tete[6] = *(temp + 1);
+    tete[7] = *(temp + 0);
+    double teete = *(double *)&tete;
+    print_double_hex(teete);
+    return teete;
 }
 
 
@@ -33,7 +41,6 @@ double host_to_net_double(double value)
 {
     if (isBigEndian() == 0) //Little Endian
     {
-       printf("Little Endian\n");
        return swap_endian(value);
     }
     return value;
@@ -52,7 +59,6 @@ double net_to_host_double(double value)
 {
     if (isBigEndian() == 0) //Little Endian
     {
-        printf("Little Endian\n");
         return swap_endian(value);
     }
     return value;
@@ -141,14 +147,12 @@ int send_message(int socket, request *answer) {
     send_package(socket, &key, sizeof(int));
     ssize_t len_v1 = strlen(answer->value_1);
     send_package(socket, &len_v1, sizeof(long));
-
     send_package(socket, &answer->value_1, len_v1);
     __uint32_t N_value_2 = htonl(answer->N_value_2);
     send_package(socket, &N_value_2, sizeof(int));
     for(int i = 0; i< answer->N_value_2; i++)
     {
-        __uint64_t conv_double = host_to_net_double(answer->value_2[i]);
-        print_double_hex(conv_double);
+        double conv_double = host_to_net_double(answer->value_2[i]);
         send_package(socket, &conv_double, sizeof(double));
     }
     __uint32_t x = htonl(answer->value_3.x);

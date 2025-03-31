@@ -15,5 +15,6 @@ double net_to_host_double(double value);
 double host_to_net_double(double value);
 double swap_endian(double value);
 int isBigEndian(void);
+void print_double_hex(double value);
 
 #endif //SOCKET_MESSAGE_H
