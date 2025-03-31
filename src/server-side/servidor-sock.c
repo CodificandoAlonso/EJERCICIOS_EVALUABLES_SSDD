@@ -27,6 +27,8 @@ int free_threads_array[MAX_THREADS];
 //Inicializador de mutex para la copia local de parámetros, la gestión de la bbdd y variable condicion
 int free_mutex_copy_params_cond = 0;
 pthread_mutex_t mutex_copy_params;
+pthread_mutex_t mutex_end;
+pthread_cond_t cond_end;
 
 pthread_cond_t cond_wait_cpy;
 //contador para saber cuantos hilos estan trabajando
@@ -55,6 +57,12 @@ int answer_back(int socket, request* params)
 }
 
 
+void end_thread(){
+  pthread_mutex_lock(&mutex_end);
+  pthread_cond_signal(&cond_end);
+  pthread_mutex_unlock(&mutex_end);
+}
+
 /**
  *@brief Esta es la función que ejecutan los distintos hilos dentro de nuestra pool de hilos
  *Requiere de la dir de memoria de uns estructura de tipo parameters_to_pass que se compone de
@@ -75,6 +83,7 @@ int process_request(parameters_to_pass *socket)
     int message = receive_message(sc[socket_id], &local_request);
     if (message < 0)
     {
+        end_thread();
         pthread_exit(0);
     }
     switch (local_request.type)
@@ -87,6 +96,7 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR inserting, failure was detected\n");
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
     case 2: // DELETE (destroy)
         local_request.answer = destroy();
@@ -95,6 +105,7 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR erasing tuples with destroy()\n");
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
     case 3: // DELETE_KEY (delete_key)
         local_request.answer = delete_key(local_request.key);
@@ -103,6 +114,7 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR erasing key %d with delete_key()\n", local_request.key);
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
     case 4: // MODIFY
         local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2,
@@ -112,6 +124,7 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR modifying key %d with modify_value()\n", local_request.key);
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
 
     case 5: // GET_VALUE
@@ -122,6 +135,7 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR obtaining key %d with get_value()\n", local_request.key);
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
     case 6: //EXIST
         local_request.answer = exist(local_request.key);
@@ -130,8 +144,10 @@ int process_request(parameters_to_pass *socket)
             printf("ERROR verifying key %d with exist()\n", local_request.key);
         }
         answer_back(sc[socket_id],&local_request);
+        end_thread();
         pthread_exit(0);
     default:
+        end_thread();
         pthread_exit(0);
     }
 }
@@ -253,6 +269,8 @@ int main(int argc, char **argv)
     //inicializacion mutex para la copia local de parametros
     pthread_mutex_init(&mutex_copy_params, NULL);
     pthread_cond_init(&cond_wait_cpy, NULL);
+    pthread_mutex_init(&mutex_end, NULL);
+    pthread_cond_init(&cond_end, NULL);
 
 
 
@@ -343,6 +361,13 @@ int main(int argc, char **argv)
                     break;
                 }
             }
+            pthread_mutex_lock(&mutex_end);
+            if (workload == MAX_THREADS){
+              printf("ocupao baby\n");
+              pthread_cond_wait(&cond_end, &mutex_end);
+              pthread_mutex_unlock(&mutex_end);
+            }
+            pthread_mutex_unlock(&mutex_end);
         }
         else
         {

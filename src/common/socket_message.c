@@ -19,7 +19,12 @@ int isBigEndian(void) {
 }
 
 double swap_endian(double value) {
+  /*
     return *(double*)((uint64_t[]){ __builtin_bswap64(*(uint64_t*)&value) });
+
+   */
+    return __builtin_bswap64(*(uint64_t*)&value);
+
 }
 
 
@@ -27,7 +32,8 @@ double host_to_net_double(double value)
 {
     if (isBigEndian() == 0) //Little Endian
     {
-        return swap_endian(value);
+       printf("Little Endian\n");
+       return swap_endian(value);
     }
     return value;
 }
@@ -45,6 +51,7 @@ double net_to_host_double(double value)
 {
     if (isBigEndian() == 0) //Little Endian
     {
+        printf("Little Endian\n");
         return swap_endian(value);
     }
     return value;
@@ -91,6 +98,7 @@ int receive_message(int socket, request *message)
         double value = 0;
         receive_package(socket,&value, sizeof(double));
         message->value_2[i] = net_to_host_double(value);
+        print_double_hex(message->value_2[i]);
     }
     int x,y = 0;
     receive_package(socket, &x, sizeof(int));
@@ -130,7 +138,7 @@ int send_message(int socket, request *answer) {
     send_package(socket, &type, sizeof(int));
     __uint32_t key = htonl(answer->key);
     send_package(socket, &key, sizeof(int));
-    size_t len_v1 = strlen(answer->value_1);
+    ssize_t len_v1 = strlen(answer->value_1);
     send_package(socket, &len_v1, sizeof(long));
 
     send_package(socket, &answer->value_1, len_v1);
@@ -138,7 +146,8 @@ int send_message(int socket, request *answer) {
     send_package(socket, &N_value_2, sizeof(int));
     for(int i = 0; i< answer->N_value_2; i++)
     {
-        __uint64_t conv_double = htonl(answer->value_2[i]);
+        __uint64_t conv_double = host_to_net_double(answer->value_2[i]);
+        print_double_hex(conv_double);
         send_package(socket, &conv_double, sizeof(double));
     }
     __uint32_t x = htonl(answer->value_3.x);
