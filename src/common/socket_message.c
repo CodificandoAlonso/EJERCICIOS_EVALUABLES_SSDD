@@ -20,20 +20,18 @@ int isBigEndian(void) {
 }
 
 double swap_endian(double value) {
-    print_double_hex(value);
     uint8_t *temp = (uint8_t *)&value;
-    char tete[8];
-    tete[0] = *(temp + 7);
-    tete[1] = *(temp + 6);
-    tete[2] = *(temp + 5);
-    tete[3] = *(temp + 4);
-    tete[4] = *(temp + 3);
-    tete[5] = *(temp + 2);
-    tete[6] = *(temp + 1);
-    tete[7] = *(temp + 0);
-    double teete = *(double *)&tete;
-    print_double_hex(teete);
-    return teete;
+    char new_double[8];
+    new_double[0] = *(temp + 7);
+    new_double[1] = *(temp + 6);
+    new_double[2] = *(temp + 5);
+    new_double[3] = *(temp + 4);
+    new_double[4] = *(temp + 3);
+    new_double[5] = *(temp + 2);
+    new_double[6] = *(temp + 1);
+    new_double[7] = *(temp + 0);
+    double ret_val = *(double *)&new_double;
+    return ret_val;
 }
 
 
