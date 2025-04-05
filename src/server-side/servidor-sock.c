@@ -107,8 +107,7 @@ void * process_request(parameters_to_pass *socket) {
             local_request.answer = -1;
             break;
     }
-
-    send_message(sc[socket_id], &local_request);
+    answer_back(sc[socket_id], &local_request);
     end_thread(socket_id);
     return NULL;
 }
