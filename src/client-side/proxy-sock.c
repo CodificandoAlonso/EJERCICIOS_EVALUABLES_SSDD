@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#define MAX_MSG_SIZE 1024
+#include <netdb.h>
 
 /**
  * @brief
@@ -56,19 +56,30 @@ int connect_socket_to_server()
         return -2;
     }
 
-    // Configurar la dirección del servidor.
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port_num);
-    if(inet_aton(ip_str, &server_addr.sin_addr) == 0){
-        fprintf(stderr, "Invalid IP Adress\n");
-        exit(-2);
+    //Convierte la ip de env a formato adecuado y guardar en la estructura server_addr
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;     // Forzamos IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    int ret = getaddrinfo(ip_str, NULL, &hints, &res);
+    if (ret != 0) {
+        fprintf(stderr, "Error en getaddrinfo: %s\n", gai_strerror(ret));
+        return -2;
     }
+
+    struct sockaddr_in *addr4 = (struct sockaddr_in *)res->ai_addr;
+    server_addr.sin_family      = AF_INET;
+    server_addr.sin_addr        = addr4->sin_addr;
+    server_addr.sin_port        = htons(port_num);
+
     // Conectar con el servidor.
-    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Error connecting\n");
         close(sock);
         return -2;
     }
+    freeaddrinfo(res);
     return sock;
 }
 

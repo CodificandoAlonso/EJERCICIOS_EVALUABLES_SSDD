@@ -175,7 +175,6 @@ int receive_message(int socket, request *message)
         double value = 0;
         receive_package(socket,&value, sizeof(double));
         message->value_2[i] = net_to_host_double(value);
-        print_double_hex(message->value_2[i]);
     }
     int x,y = 0;
     receive_package(socket, &x, sizeof(int));
