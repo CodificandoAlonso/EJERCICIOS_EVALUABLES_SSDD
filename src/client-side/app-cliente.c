@@ -31,17 +31,16 @@ int main() {
     struct Coord v3_obtenido;
     printf("\n🔹 PRUEBA 2: Obtener tupla\n");
     if (get_value(key, v1_obtenido, &N_value2, v2_obtenido, &v3_obtenido) == 0) {
-        printf("✅ Tupla obtenida: v1= '%s' ",v1_obtenido);
+        printf("✅ Tupla obtenida: v1= '%s' ", v1_obtenido);
         printf("v2= {");
-        for(int i = 0; i< N_value2; i++){
-          if (i == N_value2-1){
-            printf("%lf}, ", v2_obtenido[i]);
-            break;
-          }
-          printf("%lf, ", v2_obtenido[i]);
+        for (int i = 0; i < N_value2; i++) {
+            if (i == N_value2 - 1) {
+                printf("%lf}, ", v2_obtenido[i]);   //Para formatear bien la salida
+                break;
+            }
+            printf("%lf, ", v2_obtenido[i]);
         }
-        printf("Coord= (%d, %d)\n",v3_obtenido.x, v3_obtenido.y);
-
+        printf("Coord= (%d, %d)\n", v3_obtenido.x, v3_obtenido.y);
     } else {
         printf("❌ Error al obtener la tupla\n");
     }
@@ -50,6 +49,7 @@ int main() {
     char *nuevo_v1 = "valor modificado";
     double nuevo_v2[] = {9.9, 8.8, 7.7};
     struct Coord nuevo_v3 = {20, 15};
+
 
     printf("\n🔹 PRUEBA 3: Modificar tupla\n");
     if (modify_value(key, nuevo_v1, 3, nuevo_v2, nuevo_v3) == 0) {
@@ -65,7 +65,17 @@ int main() {
         printf("❌ Error al eliminar la tupla\n");
     }
 
-    printf("\n🔹 PRUEBA 5: Eliminar TODAS las tuplas con destroy()\n");
+    printf("\n🔹 PRUEBA 5: Verificar existencia de tupla con exist()\n");
+    int ex = exist(77);
+    if (ex == 1) {
+        printf("✅ Tupla con key %d EXISTE\n", 77);
+    } else if (ex == 0) {
+        printf("❌  Tupla con key %d NO EXISTE\n", 77);
+    } else {
+        printf("❌  Error al verificar que tupla con key %d EXISTA\n", 77);
+    }
+
+    printf("\n🔹 PRUEBA 6: Eliminar TODAS las tuplas con destroy()\n");
     if (destroy() == 0) {
         printf("✅ Base de datos limpiada correctamente\n");
     } else {

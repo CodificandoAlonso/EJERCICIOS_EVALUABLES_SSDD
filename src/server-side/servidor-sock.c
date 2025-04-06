@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <sqlite3.h>
-#include <errno.h>
 #include <signal.h>
 #include <string.h>
 #include "struct.h"
@@ -17,7 +16,7 @@
 #define MAX_THREADS 25
 
 //Inicializador global de los fd para la bbdd y la queue del servidor
-sqlite3* database_server = 0;
+sqlite3 *database_server = 0;
 
 //Creación de hilos, arrays de hilos y contador de hilos ocupadosc
 pthread_t thread_pool[MAX_THREADS];
@@ -37,11 +36,8 @@ pthread_cond_t cond_wait_cpy;
  *@brief Esta función se usa para rellenar el array auxiliar que indica qué hilo está trabajando(1)
  *y cuál está libre(0)
  */
-void pad_array()
-
-{
-    for (int i = 0; i < MAX_THREADS; i++)
-    {
+void pad_array() {
+    for (int i = 0; i < MAX_THREADS; i++) {
         free_threads_array[i] = 0;
     }
 }
@@ -50,8 +46,7 @@ void pad_array()
  *@brief Esta función se usa para enviar el mensaje de vuelta al cliente, recibe como parametros el socket y la estructura request
  * y con ella envia los datos. es invocada por cada hilo en la funcion process request.
  */
-int answer_back(int socket, request* params)
-{
+int answer_back(int socket, request *params) {
     return send_message(socket, params);
 }
 
@@ -69,7 +64,13 @@ void end_thread(int thread_id) {
 }
 
 
-void * process_request(parameters_to_pass *socket) {
+/**
+ *@brief Esta es la función que ejecutan los distintos hilos dentro de nuestra pool de hilos
+ *Requiere el paso como referencia de una estructura que contenga el índice del socket sobre el que trabaja el hilo
+ *Una vez que el codigo realiza la copia local de los datos se encargará de gestionar las distintas llamadas de claves.c para realizar las gestiones
+ *en la base de datos correspondiente
+ */
+void *process_request(parameters_to_pass *socket) {
     pthread_mutex_lock(&mutex_copy_params);
     int socket_id = socket->identifier;
     free_mutex_copy_params_cond = 1;
@@ -78,15 +79,15 @@ void * process_request(parameters_to_pass *socket) {
 
     request local_request = {0};
     int message = receive_message(sc[socket_id], &local_request);
-    if (message < 0)
-    {
+    if (message < 0) {
         end_thread(socket_id);
         pthread_exit(0);
     }
 
     switch (local_request.type) {
         case 1: // INSERT
-            local_request.answer = set_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+            local_request.answer = set_value(local_request.key, local_request.value_1, local_request.N_value_2,
+                                             local_request.value_2, local_request.value_3);
             break;
         case 2: // DELETE
             local_request.answer = destroy();
@@ -95,10 +96,12 @@ void * process_request(parameters_to_pass *socket) {
             local_request.answer = delete_key(local_request.key);
             break;
         case 4: // MODIFY
-            local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2, local_request.value_2, local_request.value_3);
+            local_request.answer = modify_value(local_request.key, local_request.value_1, local_request.N_value_2,
+                                                local_request.value_2, local_request.value_3);
             break;
         case 5: // GET_VALUE
-            local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2, local_request.value_2, &local_request.value_3);
+            local_request.answer = get_value(local_request.key, local_request.value_1, &local_request.N_value_2,
+                                             local_request.value_2, &local_request.value_3);
             break;
         case 6: // EXIST
             local_request.answer = exist(local_request.key);
@@ -125,41 +128,37 @@ void * process_request(parameters_to_pass *socket) {
  *  31   3    2.15
  *  32   3    14.33
  */
-int create_table(sqlite3* db)
-{
-    char* message_error = NULL;
+int create_table(sqlite3 *db) {
+    char *message_error = NULL;
     //Habilitar las foreign keys para mejor manejo de la base de datos
-    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK)
-    {
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "Error with the fk definition %s", message_error);
         sqlite3_close(database_server);
         return -4;
     }
 
-    char* new_table =
-        "CREATE TABLE IF NOT EXISTS data("
-        " data_key INTEGER PRIMARY KEY,"
-        " value1 TEXT,"
-        " x INTEGER,"
-        " y INTEGER"
-        ");";
-    if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
-    {
+    char *new_table =
+            "CREATE TABLE IF NOT EXISTS data("
+            " data_key INTEGER PRIMARY KEY,"
+            " value1 TEXT,"
+            " x INTEGER,"
+            " y INTEGER"
+            ");";
+    if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR CREATING MAIN TABLE %s\n", message_error);
         sqlite3_close(database_server);
         return -4;
     }
     message_error = NULL;
     new_table =
-        "CREATE TABLE IF NOT EXISTS value2_all("
-        " id TEXT PRIMARY KEY,"
-        " data_key_fk INTEGER,"
-        " value REAL,"
-        "CONSTRAINT fk_origin FOREIGN KEY(data_key_fk) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
-        "ON UPDATE CASCADE);";
+            "CREATE TABLE IF NOT EXISTS value2_all("
+            " id TEXT PRIMARY KEY,"
+            " data_key_fk INTEGER,"
+            " value REAL,"
+            "CONSTRAINT fk_origin FOREIGN KEY(data_key_fk) REFERENCES data(data_key)\n ON DELETE CASCADE\n"
+            "ON UPDATE CASCADE);";
 
-    if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK)
-    {
+    if (sqlite3_exec(db, new_table, NULL, NULL, &message_error) != SQLITE_OK) {
         fprintf(stderr, "ERROR CREATING SECONDARY TABLE 2\n");
         sqlite3_close(database_server);
         return -4;
@@ -171,8 +170,7 @@ int create_table(sqlite3* db)
 /**
  *@brief Función implementada para hacer un cierre seguro del servidor cuando se pulsa CRTL + C
  */
-void safe_close(int ctrlc)
-{
+void safe_close(int ctrlc) {
     printf("\n-----------------------------------------------\n");
     printf("\nEXIT SIGNAL RECEIVED. CLOSING ALL AND GOODBYE\n");
     printf("-----------------------------------------------\n");
@@ -199,14 +197,12 @@ int main(int argc, char **argv) {
     char db_name[256];
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database_server);
-    if (create_database != SQLITE_OK)
-    {
+    if (create_database != SQLITE_OK) {
         fprintf(stderr, "Error opening the database\n");
         exit(-4);
     }
     //Creo la tabla principal "data" y la subtabla "value2_all"
-    if (create_table(database_server) < 0)
-    {
+    if (create_table(database_server) < 0) {
         exit(-4);
     }
     sqlite3_close(database_server);
@@ -225,19 +221,19 @@ int main(int argc, char **argv) {
     int err;
 
     //Crear socket 0principal sd
-    if ((sd =  socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("Error creating socket\n");
         exit(-2);
     }
     val = 1;
-    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *)&val, sizeof(int));
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (char *) &val, sizeof(int));
 
     // bzero al server_addr
-    bzero((char *)&server_addr, sizeof(server_addr));
+    bzero((char *) &server_addr, sizeof(server_addr));
 
     //Obtenemos ip de env
     char *ip_str = getenv("IP_TUPLAS");
-    if (!ip_str){
+    if (!ip_str) {
         fprintf(stderr, "ENV variable 'IP_TUPLAS' not defined\n");
         exit(-2);
     }
@@ -255,14 +251,14 @@ int main(int argc, char **argv) {
     }
 
     //Copiamos la dirección resultante en server_addr
-    struct sockaddr_in *addr4 = (struct sockaddr_in *)res->ai_addr;
+    struct sockaddr_in *addr4 = (struct sockaddr_in *) res->ai_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr = addr4->sin_addr;
-    server_addr.sin_port = htons((uint16_t)port_num);
+    server_addr.sin_port = htons((uint16_t) port_num);
     freeaddrinfo(res);
 
     //bind
-    err = bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    err = bind(sd, (struct sockaddr *) &server_addr, sizeof(server_addr));
     if (err == -1) {
         printf("Error on bind\n");
         return -1;
@@ -278,10 +274,9 @@ int main(int argc, char **argv) {
     //El único parametro será el id del pool del hilo y del pool de sockets sc, que es el mismo
     parameters_to_pass params = {0};
     while (1) {
-
         sem_wait(&available_threads); // Esperar hasta que haya hilos libres
         //Se realiza el accept en in sc temporal
-        int sc_temp = accept(sd, (struct sockaddr *)&client_addr, &size);
+        int sc_temp = accept(sd, (struct sockaddr *) &client_addr, &size);
         if (sc_temp < 0) {
             sem_post(&available_threads);
             continue;
@@ -295,7 +290,7 @@ int main(int argc, char **argv) {
                 sc[i] = sc_temp;
                 params.identifier = i;
                 pthread_mutex_unlock(&mutex_workload);
-                if (pthread_create(&thread_pool[i], NULL, (void*)process_request, &params) == 0) {
+                if (pthread_create(&thread_pool[i], NULL, (void *) process_request, &params) == 0) {
                     pthread_mutex_lock(&mutex_copy_params);
                     while (free_mutex_copy_params_cond == 0)
                         pthread_cond_wait(&cond_wait_cpy, &mutex_copy_params);

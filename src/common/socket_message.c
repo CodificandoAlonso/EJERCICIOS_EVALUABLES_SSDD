@@ -23,10 +23,10 @@
 int isBigEndian(void) {
     unsigned int num = 1;
     // Si el primer byte (dirección más baja) es 1, es little endian
-    if (*(char *)&num == 1)
-        return 0;  // little endian
+    if (*(char *) &num == 1)
+        return 0; // little endian
     else
-        return 1;  // big endian
+        return 1; // big endian
 }
 
 /**
@@ -40,8 +40,8 @@ int isBigEndian(void) {
  * @return double Valor con los bytes intercambiados.
  */
 double swap_endian(double value) {
-    uint8_t *temp = (uint8_t *)&value;  // Tratamos el valor como un array de bytes
-    char new_double[8];  // Creamos un nuevo array para almacenar los bytes en orden invertido
+    uint8_t *temp = (uint8_t *) &value; // Tratamos el valor como un array de bytes
+    char new_double[8]; // Creamos un nuevo array para almacenar los bytes en orden invertido
 
     // Revertimos el orden de los bytes
     new_double[0] = *(temp + 7);
@@ -54,7 +54,7 @@ double swap_endian(double value) {
     new_double[7] = *(temp + 0);
 
     // Convertimos el array de bytes de nuevo a un número double
-    double ret_val = *(double *)&new_double;
+    double ret_val = *(double *) &new_double;
     return ret_val;
 }
 
@@ -67,11 +67,10 @@ double swap_endian(double value) {
  * @param value Valor double que se desea convertir.
  * @return double Valor convertido al formato de red (big endian).
  */
-double host_to_net_double(double value)
-{
+double host_to_net_double(double value) {
     if (isBigEndian() == 0) //Little Endian
     {
-       return swap_endian(value);
+        return swap_endian(value);
     }
     return value;
 }
@@ -102,8 +101,7 @@ void print_double_hex(double value) {
  * @param value Valor double en formato de red (big endian) que se desea convertir.
  * @return double Valor convertido a formato de host.
  */
-double net_to_host_double(double value)
-{
+double net_to_host_double(double value) {
     if (isBigEndian() == 0) //Little Endian
     {
         return swap_endian(value);
@@ -123,11 +121,10 @@ double net_to_host_double(double value)
  * @param size Tamaño total del paquete a recibir.
  * @return int 0 si la recepción fue exitosa, -1 si hubo un error.
  */
-int receive_package(int socket, void *message, int size)
-{
+int receive_package(int socket, void *message, int size) {
     int r = 0;
     int left = size;
-    void *buffer = message;  // Buffer para almacenar los datos recibidos
+    void *buffer = message; // Buffer para almacenar los datos recibidos
 
     // Recibimos los datos en partes hasta completar el tamaño total
     while (left > 0) {
@@ -137,10 +134,10 @@ int receive_package(int socket, void *message, int size)
             perror("Error reading from socket");
             return -1;
         }
-        left -= r;  // Restamos la cantidad de bytes leídos
-        buffer += r;  // Movemos el puntero del buffer
+        left -= r; // Restamos la cantidad de bytes leídos
+        buffer += r; // Movemos el puntero del buffer
     }
-    return 0;  // Retorno exitoso
+    return 0; // Retorno exitoso
 }
 
 
@@ -155,13 +152,12 @@ int receive_package(int socket, void *message, int size)
  * @param message Puntero a la estructura 'request' donde se almacenarán los datos recibidos.
  * @return int 0 si la recepción fue exitosa, -1 si hubo un error.
  */
-int receive_message(int socket, request *message)
-{
+int receive_message(int socket, request *message) {
     int type = 0;
     receive_package(socket, &type, sizeof(int));
     message->type = ntohl(type);
     int key = 0;
-    receive_package(socket,&key, sizeof(int));
+    receive_package(socket, &key, sizeof(int));
     message->key = ntohl(key);
     ssize_t len_v1 = 0;
     receive_package(socket, &len_v1, sizeof(long));
@@ -170,13 +166,12 @@ int receive_message(int socket, request *message)
     receive_package(socket, &n2, sizeof(int));
     message->N_value_2 = ntohl(n2);
     //Bucle para almacenar todos los valores del vector de longitud variable
-    for(int i = 0; i< message->N_value_2; i++)
-    {
+    for (int i = 0; i < message->N_value_2; i++) {
         double value = 0;
-        receive_package(socket,&value, sizeof(double));
+        receive_package(socket, &value, sizeof(double));
         message->value_2[i] = net_to_host_double(value);
     }
-    int x,y = 0;
+    int x, y = 0;
     receive_package(socket, &x, sizeof(int));
     receive_package(socket, &y, sizeof(int));
     message->value_3.x = ntohl(x);
@@ -200,22 +195,22 @@ int receive_message(int socket, request *message)
  * @param size Tamaño total del paquete a enviar.
  * @return int 0 si el envío fue exitoso, -1 si hubo un error.
  */
-int send_package(int socket, void *message, int size)
-{
+int send_package(int socket, void *message, int size) {
     int written = 0;
     int left = size;
 
     // Enviamos los datos en partes hasta completar el tamaño total
     while (left > 0) {
-        written = write(socket, message, left);  // Escribimos en el socket
-        if (written <= 0) {  // Si ocurre un error o no se escribió nada
+        written = write(socket, message, left); // Escribimos en el socket
+        if (written <= 0) {
+            // Si ocurre un error o no se escribió nada
             perror("Error reading from socket");
             return -1;
         }
-        left -= written;  // Restamos la cantidad de bytes escritos
-        message += written;  // Movemos el puntero del mensaje
+        left -= written; // Restamos la cantidad de bytes escritos
+        message += written; // Movemos el puntero del mensaje
     }
-    return 0;  // Retorno exitoso
+    return 0; // Retorno exitoso
 }
 
 
@@ -247,8 +242,7 @@ int send_message(int socket, request *answer) {
     __uint32_t N_value_2 = htonl(answer->N_value_2);
     send_package(socket, &N_value_2, sizeof(int));
     //Bucle para la serialización del vector de longitud variable
-    for(int i = 0; i< answer->N_value_2; i++)
-    {
+    for (int i = 0; i < answer->N_value_2; i++) {
         double conv_double = host_to_net_double(answer->value_2[i]);
         send_package(socket, &conv_double, sizeof(double));
     }

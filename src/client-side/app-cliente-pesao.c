@@ -30,8 +30,8 @@ int main() {
     close(fd);
 
     // Forzamos que estén en el rango 1..INT_MAX
-    int key1 = (int)(tmpKey1 % INT_MAX) + 1;
-    int key2 = (int)(tmpKey2 % INT_MAX) + 1;
+    int key1 = (int) (tmpKey1 % INT_MAX) + 1;
+    int key2 = (int) (tmpKey2 % INT_MAX) + 1;
 
     char v1[256] = "valor inicial";
     double v2[] = {2.3, 0.5, 23.45};
@@ -52,6 +52,5 @@ int main() {
     } else {
         printf("❌ Error al insertar tupla\n");
     }
-
     return 0;
 }

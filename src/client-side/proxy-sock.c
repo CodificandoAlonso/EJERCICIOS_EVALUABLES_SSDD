@@ -16,8 +16,7 @@
  * Esta función se encarga de recoger la respuesta del servidor y devolverla en forma de estructura
  * a la función correspondiente, de cara a devolver los valores adecuados al cliente.
  */
-int get_response(int socket, request* answer)
-{
+int get_response(int socket, request *answer) {
     return receive_message(socket, answer);
 }
 
@@ -27,8 +26,7 @@ int get_response(int socket, request* answer)
  * Esta función se encarga de inicializar la conexión al socket que usará el cliente para comunicarse con el servidor.
  * Utiliza como ip y puerto las generadas por las variables de entorno de la terminal en la que se ejecutan
  */
-int connect_socket_to_server()
-{
+int connect_socket_to_server() {
     int sock = 0;
     struct sockaddr_in server_addr = {0};
 
@@ -40,18 +38,18 @@ int connect_socket_to_server()
     }
 
     // Inicializar la estructura del servidor.
-    bzero((char *)&server_addr, sizeof(server_addr));
+    bzero((char *) &server_addr, sizeof(server_addr));
 
     // Obtener IP y puerto desde las variables de entorno.
     char *ip_str = getenv("IP_TUPLAS");
     char *port_str = getenv("PORT_TUPLAS");
-    if (!ip_str || !port_str){
+    if (!ip_str || !port_str) {
         fprintf(stderr, "ENV Variables IP_TUPLAS o PORT_TUPLAS not defined\n");
         return -2;
     }
     // Convertir el puerto a número entero y validar.
     int port_num = atoi(port_str);
-    if (port_num <= 0 || port_num > 65535){
+    if (port_num <= 0 || port_num > 65535) {
         fprintf(stderr, "Invalid port\n");
         return -2;
     }
@@ -59,7 +57,7 @@ int connect_socket_to_server()
     //Convierte la ip de env a formato adecuado y guardar en la estructura server_addr
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_INET;     // Forzamos IPv4
+    hints.ai_family = AF_INET; // Forzamos IPv4
     hints.ai_socktype = SOCK_STREAM; // TCP
 
     int ret = getaddrinfo(ip_str, NULL, &hints, &res);
@@ -68,13 +66,13 @@ int connect_socket_to_server()
         return -2;
     }
 
-    struct sockaddr_in *addr4 = (struct sockaddr_in *)res->ai_addr;
-    server_addr.sin_family      = AF_INET;
-    server_addr.sin_addr        = addr4->sin_addr;
-    server_addr.sin_port        = htons(port_num);
+    struct sockaddr_in *addr4 = (struct sockaddr_in *) res->ai_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr = addr4->sin_addr;
+    server_addr.sin_port = htons(port_num);
 
     // Conectar con el servidor.
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         perror("Error connecting\n");
         close(sock);
         return -2;
@@ -88,11 +86,9 @@ int connect_socket_to_server()
  * Esta función se encarga de enviar las peticiones al servidor. Es invocada por todos los servicios
  * ofrecidos por claves dentro de proxy-mq.
  */
-int send_request(int sock, request* msg)
-{
+int send_request(int sock, request *msg) {
     msg->answer = 0;
-    if(send_message(sock,msg)< 0)
-    {
+    if (send_message(sock, msg) < 0) {
         return -2;
     }
     return 0;
@@ -106,26 +102,22 @@ int send_request(int sock, request* msg)
  *
  * @return int Código de respuesta del servidor o -2 en caso de error.
  */
-int destroy()
-{
+int destroy() {
     request msg = {0};
     msg.type = 2;
 
     // Conectar al servidor.
     int sock = connect_socket_to_server();
-    if (sock < 0)
-    {
+    if (sock < 0) {
         return -2;
     }
     // Enviar la petición.
-    if(send_request(sock,&msg)< 0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
     request answer = {0};
     // Recibir la respuesta del servidor.
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
@@ -147,8 +139,7 @@ int destroy()
  * @param value3 Estructura Coord que contiene coordenadas.
  * @return int Código de respuesta del servidor o -1/-2 en caso de error.
  */
-int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
-{
+int set_value(int key, char *value1, int N_value2, double *V_value2, struct Coord value3) {
     // Validación de parámetros.
     if (strlen(value1) > 255 || N_value2 < 1 || N_value2 > 32) return -1;
 
@@ -164,21 +155,18 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 
     // Conectar al servidor.
     int sock = connect_socket_to_server();
-    if (sock < 0)
-    {
+    if (sock < 0) {
         return -2;
     }
 
     // Enviar la petición.
-    if(send_request(sock,&msg)< 0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
 
     // Recibir y procesar la respuesta.
     request answer = {0};
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
@@ -201,37 +189,31 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
  * @param value3 Puntero a la estructura Coord donde se almacenarán las coordenadas recibidas.
  * @return int Código de respuesta del servidor o -1/-2 en caso de error.
  */
-int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
-{
+int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3) {
     request msg = {0};
     msg.type = 5;
     msg.key = key;
     int sock = connect_socket_to_server();
-    if (sock < 0)
-    {
+    if (sock < 0) {
         return -2;
     }
-    if(send_request(sock,&msg)<0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
     request answer = {0};
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
     // Comprobar si el servidor indica que la clave no existe.
-    if (answer.answer == -1)
-    {
+    if (answer.answer == -1) {
         return -1;
     }
 
     // Copiar los datos recibidos en las variables proporcionadas.
     memcpy(value1, answer.value_1, sizeof(answer.value_1) * sizeof(char));
     *N_value2 = answer.N_value_2;
-    for (int i = 0; i < answer.N_value_2; i++)
-    {
+    for (int i = 0; i < answer.N_value_2; i++) {
         V_value2[i] = answer.value_2[i];
     }
     value3->x = answer.value_3.x;
@@ -254,9 +236,8 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
  * @param value3 Estructura Coord con las nuevas coordenadas.
  * @return int Código de respuesta del servidor o -1/-2 en caso de error.
  */
-int modify_value(int key,char* value1, int N_value2, double* V_value2,
-                 struct Coord value3)
-{
+int modify_value(int key, char *value1, int N_value2, double *V_value2,
+                 struct Coord value3) {
     // Validación de parámetros.
     if (strlen(value1) > 255 || N_value2 < 1 || N_value2 > 32) return -1;
 
@@ -270,17 +251,14 @@ int modify_value(int key,char* value1, int N_value2, double* V_value2,
 
     //Conexión y envio de la petición
     int sock = connect_socket_to_server();
-    if (sock < 0)
-    {
+    if (sock < 0) {
         return -2;
     }
-    if(send_request(sock,&msg)<0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
     request answer = {0};
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
@@ -302,13 +280,11 @@ int delete_key(int key)
     msg.type = 3; //DELETE_KEY
     msg.key = key;
     int sock = connect_socket_to_server();
-    if(send_request(sock,&msg)<0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
     request answer = {0};
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
@@ -325,19 +301,16 @@ int delete_key(int key)
  * @param key Clave identificadora a comprobar.
  * @return int Código de respuesta del servidor o -2 en caso de error.
  */
-int exist(int key)
-{
+int exist(int key) {
     request msg = {0};
     msg.type = 6; //EXIST
     msg.key = key;
     int sock = connect_socket_to_server();
-    if(send_request(sock,&msg)<0)
-    {
+    if (send_request(sock, &msg) < 0) {
         return -2;
     }
     request answer = {0};
-    if (get_response(sock,&answer) < 0)
-    {
+    if (get_response(sock, &answer) < 0) {
         perror("Error receiving from the server\n");
         return -2;
     }
