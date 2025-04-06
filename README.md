@@ -105,9 +105,7 @@ Hemos dividido las pruebas de estrés en 3 partes:
 ### <a name="_page6_x72.00_y72.00"></a>**test\_easy\_stress.sh**
 Implementa una prueba de estrés automatizada que simula un bajo volumen de operaciones simultáneas, incluyendo inserciones, modificaciones y eliminaciones de claves. Se analizaron métricas de rendimiento y la capacidad del sistema para manejar grandes volúmenes de solicitudes sin degradación significativa.
 ### <a name="_page6_x72.00_y151.38"></a>**test\_hard\_stress.sh**
-Implementa una prueba de estrés automatizada que simula un gran volumen de operaciones simultáneas, incluyendo inserciones, modificaciones y eliminaciones de claves. De nuevo, se analizaron métricas de rendimiento y la capacidad del sistema para manejar grandes volúmenes de solicitudes sin degradación significativa. Esta prueba se realiza con el único proposito de probar que el servidor no realiza goteo de información por el gran volumen de mensajes que llega a recibir, denotando como factor limitante al propio sistema operativo
-
-Durante las pruebas de carga, se observó una limitación del sistema al intentar manejar más de 50 clientes simultáneamente(Esta prueba depende del sistema en el que se realice, en algunos sistemas soportaba hasta 50 clientes, en otros a los 18/20 paraba). Aunque las operaciones básicas de inserción, recuperación y modificación se realizaron correctamente bajo carga moderada, cuando se superó este umbral, se presentó un problema en el que la cola de mensajes alcanzaba su capacidad máxima, lo que impedía la recepción de nuevas solicitudes y generaba un mensaje de error indicando que la cola estaba llena.
+Implementa una prueba de estrés automatizada que simula un gran volumen de operaciones simultáneas, incluyendo inserciones, modificaciones y eliminaciones de claves. De nuevo, se analizaron métricas de rendimiento y la capacidad del sistema para manejar grandes volúmenes de solicitudes sin degradación significativa. Esta prueba se realiza con el único proposito de probar que el servidor no realiza goteo de información por el gran volumen de mensajes que llega a recibir.
 
 <a name="_page6_x72.00_y392.21"></a>**test\_pesao.sh**
 
