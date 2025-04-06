@@ -1,5 +1,5 @@
 # Ejercicios_evaluables_SSDD
-Ejercicio evaluable 1 realizado por Ángela Elena Serrano Casas y Héctor Álvarez Marcos. Esta aplicación es un sistema
+Ejercicios evaluables realizado por Ángela Elena Serrano Casas y Héctor Álvarez Marcos. Esta aplicación es un sistema
 distribuido, emulando una estructura Cliente-Servidor, en la que se otorga una "api" al cliente para que pueda realizar
 operaciones sobre un sistema de guardado de datos. En nuestro caso el sistema ha sido una base de datos SQL, gestionada
 por un servidor concurrente en el lenguaje de programación C. Este proyecto tiene 3 ramas, 2 de ellas implementando cada
