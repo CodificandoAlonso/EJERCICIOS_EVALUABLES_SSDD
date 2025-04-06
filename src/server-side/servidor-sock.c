@@ -231,31 +231,11 @@ int main(int argc, char **argv) {
     // bzero al server_addr
     bzero((char *) &server_addr, sizeof(server_addr));
 
-    //Obtenemos ip de env
-    char *ip_str = getenv("IP_TUPLAS");
-    if (!ip_str) {
-        fprintf(stderr, "ENV variable 'IP_TUPLAS' not defined\n");
-        exit(-2);
-    }
 
-    //getaddrinfo PARA RESOLVER TANTO IP NUMÉRICA COMO TEXTO ("localhost", etc.)
-    struct addrinfo hints, *res;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
 
-    int gai_ret = getaddrinfo(ip_str, NULL, &hints, &res);
-    if (gai_ret != 0) {
-        fprintf(stderr, "Invalid IP/hostname: %s\n", ip_str);
-        exit(-2);
-    }
-
-    //Copiamos la dirección resultante en server_addr
-    struct sockaddr_in *addr4 = (struct sockaddr_in *) res->ai_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr = addr4->sin_addr;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons((uint16_t) port_num);
-    freeaddrinfo(res);
 
     //bind
     err = bind(sd, (struct sockaddr *) &server_addr, sizeof(server_addr));
