@@ -1,0 +1,1 @@
+/usr/bin/cc "CMakeFiles/server.dir/src/server-side/servidor-mq.c.o" "CMakeFiles/server.dir/src/server-side/claves.c.o" -o server  -Wl,-rpath,/usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu/libsqlite3.so 

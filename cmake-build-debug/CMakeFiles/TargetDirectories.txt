@@ -1,0 +1,4 @@
+C:/Users/anaja/CLionProjects/Ejercicio1_SSDD/cmake-build-debug/CMakeFiles/servidor.dir
+C:/Users/anaja/CLionProjects/Ejercicio1_SSDD/cmake-build-debug/CMakeFiles/cliente.dir
+C:/Users/anaja/CLionProjects/Ejercicio1_SSDD/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/anaja/CLionProjects/Ejercicio1_SSDD/cmake-build-debug/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,1 @@
+/usr/bin/cc "CMakeFiles/cliente.dir/src/client-side/app-cliente-inf.c.o" "CMakeFiles/cliente.dir/src/client-side/proxy-rpc.c.o" CMakeFiles/cliente.dir/src/common/socket_message.c.o -o cliente

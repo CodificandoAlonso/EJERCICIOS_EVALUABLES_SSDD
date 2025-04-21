@@ -1,87 +1,113 @@
-compiler = gcc
-CFLAGS  = -Wall -fPIC -lsqlite3 $(INCLUDES)
-INCLUDES = -I src/structs
+# ===================================
+# CONFIGURACIÓN GENERAL
+# ===================================
+CC         = gcc
+CFLAGS     = -Wall -Wextra -I src/structs -I src/common -I/usr/include/tirpc
+CLAVES_X   = src/common/claves_rpc.x
+RPCGEN     = rpcgen -C
 
-
-#SERVIDOR
-SERVER_SRCS = src/server-side/servidor-sock.c src/server-side/claves.c src/server-side/treat_sql.c src/common/socket_message.c
-SERVER_OBJS = $(SERVER_SRCS:.c=.o)
-SERVER_BIN  = servidor
-
-
-#CLIENTE-libclaves
-CLIENT_LIB_SRCS = src/client-side/proxy-sock.c src/common/socket_message.c
-CLIENT_LIB_OBJS = $(CLIENT_LIB_SRCS:.c=.o)
-LIB_NAME = src/client-side/libclaves.so
-
-#CLIENTE CLIENTE1
-CLIENT1_APP_SRCS = src/client-side/app-cliente.c
-CLIENT1_APP_OBJS = $(CLIENT1_APP_SRCS:.c=.o)
-CLIENT1_BIN = app-cliente
-
-#CLIENTE CLIENTE2
-CLIENT2_APP_SRCS =src/client-side/app-cliente2.c
-CLIENT2_APP_OBJS = $(CLIENT2_APP_SRCS:.c=.o)
-CLIENT2_BIN = app-cliente2
-
-#CLIENTE CLIENTE3
-CLIENT3_APP_SRCS =src/client-side/app-cliente3.c
-CLIENT3_APP_OBJS = $(CLIENT3_APP_SRCS:.c=.o)
-CLIENT3_BIN = app-cliente3
-
-
-#CLIENTE CLIENTE INFINITO
-CLIENT_INF_APP_SRCS =src/client-side/app-cliente-inf.c
-CLIENT_INF_APP_OBJS = $(CLIENT_INF_APP_SRCS:.c=.o)
-CLIENT_INF_BIN = app-cliente-infinito
-
-#CLIENTE CLIENTE PESAO
-CLIENT_PES_APP_SRCS =src/client-side/app-cliente-pesao.c
-CLIENT_PES_APP_OBJS = $(CLIENT_PES_APP_SRCS:.c=.o)
-CLIENT_PES_BIN = app-cliente-pesao
-
-
-#Regla para compilarlo todo
-all: $(SERVER_BIN) $(LIB_NAME) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT_INF_BIN) $(CLIENT_PES_BIN)
-
-
-#COMPILACION SERVER
-$(SERVER_BIN): $(SERVER_OBJS)
-	$(compiler) -o $@ $(SERVER_OBJS) $(CFLAGS)
-
-#COMPILACION DE LA LIBRERIA
-$(LIB_NAME): $(CLIENT_LIB_OBJS)
-	$(compiler) -shared -o $@ $(CLIENT_LIB_OBJS)
-
-#CLIENTE1
-$(CLIENT1_BIN): $(CLIENT1_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT1_APP_OBJS) $(LIB_NAME)
-
-#CLIENTE2
-$(CLIENT2_BIN): $(CLIENT2_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT2_APP_OBJS) $(LIB_NAME)
-
-#CLIENTE3
-$(CLIENT3_BIN): $(CLIENT3_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT3_APP_OBJS) $(LIB_NAME)
-
-#CLIENTE-INFINITO
-$(CLIENT_INF_BIN): $(CLIENT_INF_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT_INF_APP_OBJS) $(LIB_NAME)
-
-#CLIENTE-PESAO
-$(CLIENT_PES_BIN): $(CLIENT_PES_APP_OBJS) $(LIB_NAME)
-	$(compiler) -o $@ $(CLIENT_PES_APP_OBJS) $(LIB_NAME)
-
-#REGLA PARA CREAR LOS .o
+# ===================================
+# REGLA GENÉRICA: .c → .o
+# ===================================
 %.o: %.c
-	$(compiler) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-USER_NAME := $(shell whoami)
+# ===================================
+# GENERACIÓN AUTOMÁTICA DE ARCHIVOS RPC
+# ===================================
+src/common/claves_rpc.h: $(CLAVES_X)
+	cd src/common && $(RPCGEN) -h -o claves_rpc.h claves_rpc.x
 
-#LIMPIA; ME LO CARGO TODO
+src/common/claves_rpc_clnt.c: $(CLAVES_X)
+	cd src/common && $(RPCGEN) -l -o claves_rpc_clnt.c claves_rpc.x
+
+src/common/claves_rpc_xdr.c: $(CLAVES_X)
+	cd src/common && $(RPCGEN) -c -o claves_rpc_xdr.c claves_rpc.x
+
+src/common/claves_rpc_svc.c: $(CLAVES_X)
+	cd src/common && $(RPCGEN) -m -o claves_rpc_svc.c claves_rpc.x
+
+# ===================================
+# DEPENDENCIAS PARA CLIENTE RPC
+# ===================================
+# proxy-rpc.o necesita los stubs de cliente y el header RPC
+src/client-side/proxy-rpc.o: src/common/claves_rpc.h \
+                             src/common/claves_rpc_clnt.c \
+                             src/common/claves_rpc_xdr.c
+
+# ===================================
+# DEPENDENCIAS PARA SERVIDOR RPC
+# ===================================
+# servidor-rpc.o necesita el header RPC
+src/server-side/servidor-rpc.o: src/common/claves_rpc.h
+
+# ===================================
+# CLIENTE RPC
+# ===================================
+CLIENT_SRCS = \
+	src/client-side/proxy-rpc.c \
+	src/common/claves_rpc_clnt.c \
+	src/common/claves_rpc_xdr.c
+CLIENT_OBJS = $(CLIENT_SRCS:.c=.o)
+
+app-cliente-rpc: $(CLIENT_OBJS)
+	$(CC) -o $@ $(CLIENT_OBJS) $(CFLAGS) -ltirpc
+
+# ===================================
+# SERVIDOR RPC
+# ===================================
+SERVER_SRCS = \
+	src/server-side/servidor-rpc.c \
+	src/server-side/claves.c \
+	src/server-side/treat_sql.c \
+	src/common/claves_rpc_svc.c \
+	src/common/claves_rpc_xdr.c
+SERVER_OBJS = $(SERVER_SRCS:.c=.o)
+
+servidor-rpc: $(SERVER_OBJS)
+	$(CC) -o $@ $(SERVER_OBJS) -lpthread -lsqlite3 -ltirpc
+
+# Directorios
+SRCDIR     = src/client-side
+COMMON_OBJS = src/common/claves_rpc_clnt.o src/common/claves_rpc_xdr.o
+PROXY_OBJ   = src/client-side/proxy-rpc.o
+
+# Todos los tests app-cliente*.c
+CLIENT_TESTS = $(notdir $(wildcard $(SRCDIR)/app-cliente*.c))
+CLIENT_EXES  = $(patsubst app-cliente%.c,app-cliente%,$(CLIENT_TESTS))
+
+.PHONY: clients
+
+clients: $(CLIENT_EXES)
+
+# patrón para construir cada test
+app-cliente%: $(SRCDIR)/app-cliente%.c $(COMMON_OBJS) $(PROXY_OBJ)
+	$(CC) $(CFLAGS) \
+	  -o $@ $< $(COMMON_OBJS) $(PROXY_OBJ) \
+	  -I src/structs -I src/common \
+	  -ltirpc -lpthread
+
+# limpia también los tests
 clean:
-	rm -f $(SERVER_OBJS) $(CLIENT_LIB_OBJS) $(CLIENT1_APP_OBJS) $(CLIENT2_APP_OBJS) $(CLIENT3_APP_OBJS) \
-			$(CLIENT_INF_APP_OBJS) $(CLIENT_PES_APP_OBJS) \
-	      $(SERVER_BIN) $(CLIENT1_BIN) $(CLIENT2_BIN) $(CLIENT3_BIN) $(CLIENT_INF_BIN) $(CLIENT_PES_BIN) $(LIB_NAME)
-	rm -rf /tmp/database-$(USER_NAME).db
+	rm -f $(CLIENT_EXES) bin/*
+
+# ===================================
+# META “all”
+# ===================================
+.PHONY: all
+all: servidor-rpc app-cliente-rpc
+
+# ===================================
+# LIMPIEZA
+# ===================================
+.PHONY: clean
+clean:
+	rm -f src/common/claves_rpc.h \
+	      src/common/claves_rpc_clnt.c \
+	      src/common/claves_rpc_svc.c \
+	      src/common/claves_rpc_xdr.c \
+	      src/client-side/*.o \
+	      src/server-side/*.o \
+	      src/common/*.o \
+	      servidor-rpc \
+	      app-cliente-rpc
