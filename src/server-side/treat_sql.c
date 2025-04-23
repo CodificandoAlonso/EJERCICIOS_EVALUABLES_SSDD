@@ -13,6 +13,8 @@
  */
 int recall_row_data(void *data, int num_columns, char **column_values, char **column_names) {
     receive_sql *sql = data;
+    (void)num_columns;
+    (void)column_names;
     memcpy(sql->value_1,column_values[0], strlen(column_values[0]));
     sql->value3.x = atoi(column_values[1]);
     sql->value3.y = atoi(column_values[2]);
@@ -32,6 +34,8 @@ int recall_row_data(void *data, int num_columns, char **column_values, char **co
  */
 int recall_row_value2_all(void *data, int num_columns, char **column_values, char **column_names) {
     receive_sql *sql = data;
+    (void)num_columns;
+    (void)column_names;
     char *endptr;
     double value = strtod(column_values[0], &endptr);
     sql->value_2[sql->N_values] = value;
