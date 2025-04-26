@@ -1,285 +1,348 @@
-/* src/server-side/claves.c */
-
 #include "claves.h"
-#include "struct.h"
-#include "treat_sql.h"
 
 #include <pthread.h>
-#include <sqlite3.h>
-#include <stdio.h>
+#include<stdio.h>
+#include<sqlite3.h>
 #include <stdlib.h>
 #include <string.h>
+#include <struct.h>
 #include <unistd.h>
 
-/* Mutex global para serializar accesos a la base de datos */
+#include "treat_sql.h"
+
+
 pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+
 /**
- * @brief Crea las tablas si no existen.
+ * @brief Esta llamada permite inicializar el servicio de elementos clave-valor1-valor2-valor3.
+ * Mediante este servicio se destruyen todas las tuplas que estuvieran almacenadas previamente.
+ *
+ * @return int La función devuelve 0 en caso de éxito y -1 en caso de error.
+ * @retval 0 en caso de exito.
+ * @retval -1 en caso de error.
  */
-static int ensure_schema(sqlite3 *db) {
-    const char *schema =
-        "CREATE TABLE IF NOT EXISTS data ("
-        "  data_key INTEGER PRIMARY KEY,"
-        "  value1   TEXT    NOT NULL,"
-        "  x        INTEGER NOT NULL,"
-        "  y        INTEGER NOT NULL"
-        ");"
-        "CREATE TABLE IF NOT EXISTS value2_all ("
-        "  id           TEXT PRIMARY KEY,"
-        "  data_key_fk  INTEGER NOT NULL,"
-        "  value        REAL,"
-        "  FOREIGN KEY(data_key_fk) REFERENCES data(data_key) ON DELETE CASCADE"
-        ");";
-    char *errmsg = NULL;
-    int rc = sqlite3_exec(db, schema, NULL, NULL, &errmsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Error creando esquema: %s\n", errmsg);
-        sqlite3_free(errmsg);
+int destroy()
+{
+    sqlite3* database;
+    int create_database = sqlite3_open("/tmp/database.db", &database);
+    if (create_database != SQLITE_OK)
+    {
+        fprintf(stderr, "Error opening the database\n");
         return -1;
     }
+    sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+    char* message_error = NULL;
+
+    char* delete_data_table = "DELETE from data;";
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, delete_data_table, NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "ERROR deleting tables %s\n", sqlite3_errmsg(database));
+        pthread_mutex_unlock(&ddbb_mutex);
+        sqlite3_close(database);
+        return -1;
+    }
+    // Verificar si realmente se eliminó una fila
+    if (sqlite3_changes(database) == 0)
+    {
+        printf("Database is already clean, no rows deleted\n");
+        pthread_mutex_unlock(&ddbb_mutex);
+        sqlite3_close(database);
+        return -1;
+    }
+    pthread_mutex_unlock(&ddbb_mutex);
+    sqlite3_close(database);
     return 0;
 }
 
 /**
- * @brief Inicializa (o limpia) la base de datos completa.
+ * @brief Este servicio inserta el elemento <key, value1, value2, value3>.
+ * El vector correspondiente al valor 2 vendrá dado por la dimensión del vector (N_Value2) y
+ * el vector en si (V_value2).
+ * El servicio devuelve 0 si se insertó con éxito y -1 en caso de error.
+ * Se considera error, intentar insertar una clave que ya existe previamente o
+ * que el valor N_value2 esté fuera de rango. En este caso se devolverá -1 y no se insertará.
+ * También se considerará error cualquier error en las comunicaciones.
+ *
+ *
+ * @param key clave.
+ * @param value1   valor1 [256].
+ * @param N_value2 dimensión del vector V_value2 [1-32].
+ * @param V_value2 vector de doubles [32].
+ * @param value3   estructura Coord.
+ * @return int El servicio devuelve 0 si se insertó con éxito y -1 en caso de error.
+ * @retval 0 si se insertó con éxito.
+ * @retval -1 en caso de error.
  */
-int destroy(void)
+int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
-    sqlite3 *db;
-    char path[256];
-
-    snprintf(path, sizeof(path), "/tmp/database-%s.db", getlogin());
-    if (sqlite3_open(path, &db) != SQLITE_OK) {
-        fprintf(stderr, "destroy: error abriendo DB: %s\n", sqlite3_errmsg(db));
+    sqlite3* database;
+    //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    int create_database = sqlite3_open("/tmp/database.db", &database);
+    if (create_database != SQLITE_OK)
+    {
+        fprintf(stderr, "Error opening the database\n");
         return -1;
     }
 
+    char* error_message = NULL;
+    value1[strcspn(value1, "\r\n")] = 0;
+    char insert[256];
+    char local_value1[256];
+    memcpy(local_value1, value1, strlen(value1));
+
+    char del[128];
+    snprintf(del, sizeof(del),
+                "DELETE FROM value2_all WHERE data_key_fk = %d;", key);
     pthread_mutex_lock(&ddbb_mutex);
-    sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
-    sqlite3_exec(db, "DELETE FROM value2_all;",   NULL, NULL, NULL);
-    sqlite3_exec(db, "DELETE FROM data;",         NULL, NULL, NULL);
+    sqlite3_exec(database, del, NULL, NULL, NULL);
     pthread_mutex_unlock(&ddbb_mutex);
 
-    sqlite3_close(db);
+    //Insertar los primeros parametros en data
+    sprintf(insert,
+            "INSERT into data(data_key, value1,x,y) "
+            " VALUES(%d, '%s', %d ,%d);", key, value1, value3.x, value3.y);
+    int test;
+    pthread_mutex_lock(&ddbb_mutex);
+    if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
+    {
+        if (test != SQLITE_CONSTRAINT)
+        {
+            fprintf(stderr, "ERROR inserting in primary table %s\n", sqlite3_errmsg(database));
+            sqlite3_close(database);
+            pthread_mutex_unlock(&ddbb_mutex);
+            return -1;
+        }
+        fprintf(stderr, "Error PK duplicated with associated key: %d\n", key);
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
+        return -1;
+    }
+    pthread_mutex_unlock(&ddbb_mutex);
+    if (N_value2 > 32)
+    {
+        fprintf(stderr, "Too many arguments in value2\n");
+        sqlite3_close(database);
+        return -1;
+    }
+    char primary_key[20];
+
+    for (int i = 0; i < N_value2; i++)
+    {
+        sprintf(primary_key, "%d%d", key, i);
+        sprintf(insert,
+                "INSERT into value2_all(id, data_key_fk, value) "
+                " VALUES(%s, %d, %f);", primary_key, key, V_value2[i]);
+        pthread_mutex_lock(&ddbb_mutex);
+        if ((test = sqlite3_exec(database, insert, NULL, NULL, &error_message)) != SQLITE_OK)
+        {
+            if (test != SQLITE_CONSTRAINT)
+            {
+                fprintf(stderr, "ERROR inserting in secondary table.\n");
+                pthread_mutex_unlock(&ddbb_mutex);
+                sqlite3_close(database);
+                return -1;
+            }
+            fprintf(stderr, "Error PK duplicated in secondary table.\n");
+            sqlite3_close(database);
+            pthread_mutex_unlock(&ddbb_mutex);
+            return -1;
+        }
+        pthread_mutex_unlock(&ddbb_mutex);
+    }
+
+    sqlite3_close(database);
     return 0;
 }
 
 /**
- * @brief Inserta o reemplaza un elemento completo <key, value1, V2[], coord>.
+ * @brief Este servicio permite obtener los valores asociados a la clave key.
+ * La cadena de caracteres asociada se devuelve en value1.
+ * En N_Value2 se devuelve la dimensión del vector asociado al valor 2 y en V_value2 las componentes del vector.
+ * Tanto value1 como V_value2 tienen que tener espacio reservado para poder almacenar el máximo número
+ * de elementos posibles (256 en el caso de la cadena de caracteres y 32 en el caso del vector de doubles).
+ * La función devuelve 0 en caso de éxito y -1 en caso de error, por ejemplo,
+ * si no existe un elemento con dicha clave o si se produce un error de comunicaciones.
+ *
+ *
+ * @param key clave.
+ * @param value1   valor1 [256].
+ * @param N_value2 dimensión del vector V_value2 [1-32] por referencia.
+ * @param V_value2 vector de doubles [32].
+ * @param value3   estructura Coord por referencia.
+ * @return int El servicio devuelve 0 si se insertó con éxito y -1 en caso de error.
+ * @retval 0 en caso de éxito.
+ * @retval -1 en caso de error.
  */
-int set_value(int key, char *value1, int N_value2,
-              double *V_value2, struct Coord value3)
+int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    char path[256];
-    int rc;
-
-    snprintf(path, sizeof(path), "/tmp/database-%s.db", getlogin());
-    if ((rc = sqlite3_open(path, &db)) != SQLITE_OK) {
-        fprintf(stderr, "Error abriendo DB: %s\n", sqlite3_errmsg(db));
+    sqlite3* database;
+    int create_database = sqlite3_open("/tmp/database.db", &database);
+    if (create_database != SQLITE_OK)
+    {
+        fprintf(stderr, "Error opening the database\n");
         return -1;
     }
 
-    if (ensure_schema(db) < 0) {
-        sqlite3_close(db);
+    char query[256];
+    sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
+    receive_sql receive = {0};
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, query, recall_row_data, (void*)&receive, NULL) != SQLITE_OK)
+    {
+        fprintf(stderr, "ERROR executing query\n");
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
         return -1;
     }
-
-    sqlite3_exec(db, "PRAGMA foreign_keys=ON;", NULL, NULL, NULL);
-
-    /* Debug */
-    printf("[DEBUG][set_value] key=%d, value1='%s', x=%d, y=%d\n",
-           key, value1, value3.x, value3.y);
-
-    /* 1) Tabla data */
-    const char *sql1 =
-        "INSERT OR REPLACE INTO data(data_key, value1, x, y) "
-        "VALUES(?1, ?2, ?3, ?4);";
-    rc = sqlite3_prepare_v2(db, sql1, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) goto err;
-    sqlite3_bind_int   (stmt, 1, key);
-    sqlite3_bind_text  (stmt, 2, value1, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int   (stmt, 3, value3.x);
-    sqlite3_bind_int   (stmt, 4, value3.y);
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    if (rc != SQLITE_DONE) goto err;
-
-    /* 2) Tabla value2_all */
-    if (N_value2 > 32) N_value2 = 32;
-    const char *sql2 =
-        "INSERT OR REPLACE INTO value2_all(id, data_key_fk, value) "
-        "VALUES(?1, ?2, ?3);";
-    for (int i = 0; i < N_value2; i++) {
-        char id[32];
-        snprintf(id, sizeof(id), "%d_%d", key, i);
-        rc = sqlite3_prepare_v2(db, sql2, -1, &stmt, NULL);
-        if (rc != SQLITE_OK) goto err;
-        sqlite3_bind_text  (stmt, 1, id, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int   (stmt, 2, key);
-        sqlite3_bind_double(stmt, 3, V_value2[i]);
-        rc = sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-        if (rc != SQLITE_DONE) goto err;
+    pthread_mutex_unlock(&ddbb_mutex);
+    //controlador a modo de "flag" por si no se devuelve ninguna fila
+    if (receive.empty == 0)
+    {
+        sqlite3_close(database);
+        return -1;
     }
-
-    sqlite3_close(db);
+    receive.empty = 0;
+    sprintf(query, "SELECT value FROM value2_all WHERE data_key_fk == %d;", key);
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, query, recall_row_value2_all, (void*)&receive, NULL) != SQLITE_OK)
+    {
+        fprintf(stderr, "ERROR executing query\n");
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
+        return -1;
+    }
+    pthread_mutex_unlock(&ddbb_mutex);
+    if (receive.empty == 0)
+    {
+        sqlite3_close(database);
+        return 0; //Este caso seria en el que no hay elementos de value2, es decir, se ha insertado un vector vacio
+        //No está mal, de ahi que se devuelva 0, simplemente no se realiza la copia
+    }
+    memcpy(value1, receive.value_1, sizeof(receive.value_1) * sizeof(char));
+    for (int i = 0; i < receive.N_values; i++)
+    {
+        V_value2[i] = receive.value_2[i];
+    }
+    *N_value2 = receive.N_values;
+    value3->x = receive.value3.x;
+    value3->y = receive.value3.y;
+    sqlite3_close(database);
     return 0;
-
-err:
-    fprintf(stderr, "Error en set_value: %s\n", sqlite3_errmsg(db));
-    if (stmt) sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return -1;
 }
 
 /**
- * @brief Recupera todos los campos de la tupla con clave `key`.
+ * @brief Este servicio permite modificar los valores asociados a la clave key.
+ * La función devuelve 0 en caso de éxito y -1 en caso de error, por ejemplo,
+ * si no existe un elemento con dicha clave o si se produce un error en las comunicaciones.
+ * También se devolverá -1 si el valor N_value2 está fuera de rango.
+ *
+ *
+ * @param key clave.
+ * @param value1   valor1 [256].
+ * @param N_value2 dimensión del vector V_value2 [1-32].
+ * @param V_value2 vector de doubles [32].
+ * @param value3   estructura Coord.
+ * @return int El servicio devuelve 0 si se insertó con éxito y -1 en caso de error.
+ * @retval 0 si se modificó con éxito.
+ * @retval -1 en caso de error.
  */
-int get_value(int key, char *value1, int *N_value2,
-              double *V_value2, struct Coord *value3)
+int modify_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    char path[256];
-    int rc;
-
-    snprintf(path, sizeof(path), "/tmp/database-%s.db", getlogin());
-    if ((rc = sqlite3_open(path, &db)) != SQLITE_OK) {
-        fprintf(stderr, "Error abriendo DB: %s\n", sqlite3_errmsg(db));
+    if (delete_key(key) < 0)
+    {
         return -1;
     }
-
-    if (ensure_schema(db) < 0) {
-        sqlite3_close(db);
+    if (set_value(key, value1, N_value2, V_value2, value3) < 0)
+    {
         return -1;
     }
-
-    /* 1) Leer data */
-    const char *sql1 =
-        "SELECT value1, x, y FROM data WHERE data_key = ?1;";
-    rc = sqlite3_prepare_v2(db, sql1, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) goto err;
-    sqlite3_bind_int(stmt, 1, key);
-    if (sqlite3_step(stmt) != SQLITE_ROW) {
-        sqlite3_finalize(stmt);
-        sqlite3_close(db);
-        return -1;
-    }
-    /* Copiar value1 y coord */
-    const unsigned char *text = sqlite3_column_text(stmt, 0);
-    strncpy(value1, (const char*)text, 255);
-    value1[255] = '\0';
-    value3->x = sqlite3_column_int(stmt, 1);
-    value3->y = sqlite3_column_int(stmt, 2);
-
-    /* Debug */
-    printf("[DEBUG][get_value] key=%d -> value1='%s', x=%d, y=%d\n",
-           key, value1, value3->x, value3->y);
-
-    sqlite3_finalize(stmt);
-
-    /* 2) Leer vector */
-    *N_value2 = 0;
-    const char *sql2 =
-        "SELECT value FROM value2_all WHERE data_key_fk = ?1 ORDER BY id;";
-    rc = sqlite3_prepare_v2(db, sql2, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) goto err;
-    sqlite3_bind_int(stmt, 1, key);
-    while (sqlite3_step(stmt) == SQLITE_ROW && *N_value2 < 32) {
-        V_value2[*N_value2] = sqlite3_column_double(stmt, 0);
-        (*N_value2)++;
-    }
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
     return 0;
-
-err:
-    fprintf(stderr, "Error en get_value: %s\n", sqlite3_errmsg(db));
-    if (stmt) sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return -1;
 }
 
-/**
- * @brief Modifica un elemento: borra y vuelve a insertar.
- */
-int modify_value(int key, char *value1, int N_value2,
-                 double *V_value2, struct Coord value3)
-{
-    if (delete_key(key) < 0) return -1;
-    return set_value(key, value1, N_value2, V_value2, value3);
-}
 
 /**
- * @brief Borra un elemento completo.
+ * @brief Este servicio permite borrar el elemento cuya clave es key.
+ * La función devuelve 0 en caso de éxito y -1 en caso de error.
+ * En caso de que la clave no exista también se devuelve -1.
+ *
+ * @param key clave.
+ * @return int La función devuelve 0 en caso de éxito y -1 en caso de error.
+ * @retval 0 en caso de éxito.
+ * @retval -1 en caso de error.
  */
 int delete_key(int key)
 {
-    sqlite3 *db;
-    char path[256];
-    char *errmsg = NULL;
-    int rc;
+    sqlite3* database;
+    int create_database = sqlite3_open("/tmp/database.db", &database);
+    if (create_database != SQLITE_OK)
+    {
+        fprintf(stderr, "Error opening the database\n");
+        return -1;
+    }
 
-    snprintf(path, sizeof(path), "/tmp/database-%s.db", getlogin());
-    if ((rc = sqlite3_open(path, &db)) != SQLITE_OK) {
-        fprintf(stderr, "Error abriendo DB: %s\n", sqlite3_errmsg(db));
+    sqlite3_exec(database, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+    char* message_error = NULL;
+    // Nueva consulta preparada
+    char delete_query[256];
+    sprintf(delete_query, "DELETE FROM data WHERE data_key == %d;", key);
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, delete_query, NULL, NULL, &message_error) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error deleting key %s", message_error);
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
         return -1;
     }
-    if (ensure_schema(db) < 0) {
-        sqlite3_close(db);
+    if (sqlite3_changes(database) == 0)
+    {
+        printf("Key %d does not exist, no rows deleted\n", key);
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
         return -1;
     }
-    sqlite3_exec(db, "PRAGMA foreign_keys=ON;", NULL, NULL, NULL);
-
-    char sql[64];
-    snprintf(sql, sizeof(sql),
-             "DELETE FROM data WHERE data_key = %d;", key);
-    rc = sqlite3_exec(db, sql, NULL, NULL, &errmsg);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Error borrando clave %d: %s\n", key, errmsg);
-        sqlite3_free(errmsg);
-        sqlite3_close(db);
-        return -1;
-    }
-    sqlite3_close(db);
+    pthread_mutex_unlock(&ddbb_mutex);
+    printf("Key %d erased correctly\n", key);
+    sqlite3_close(database);
     return 0;
 }
 
 /**
- * @brief Comprueba existencia usando SELECT EXISTS.
+ * @brief Este servicio permite determinar si existe un elemento con clave key.
+ * La función devuelve 1 en caso de que exista y 0 en caso de que no exista.
+ * En caso de error se devuelve -1. Un error puede ocurrir en este caso por un problema en las comunicaciones.
+ *
+ * @param key clave.
+ * @return int La función devuelve 1 en caso de que exista y 0 en caso de que no exista. En caso de error se devuelve -1.
+ * @retval 1 en caso de que exista.
+ * @retval 0 en caso de que no exista.
+ * @retval -1 en caso de error.
  */
 int exist(int key)
 {
-    sqlite3 *db;
-    sqlite3_stmt *stmt;
-    char path[256];
-    int rc, found = 0;
-
-    snprintf(path, sizeof(path), "/tmp/database-%s.db", getlogin());
-    if ((rc = sqlite3_open(path, &db)) != SQLITE_OK) {
-        fprintf(stderr, "Error abriendo DB: %s\n", sqlite3_errmsg(db));
+    sqlite3* database;
+    int create_database = sqlite3_open("/tmp/database.db", &database);
+    if (create_database != SQLITE_OK)
+    {
+        fprintf(stderr, "Error opening the database\n");
         return -1;
     }
-    if (ensure_schema(db) < 0) {
-        sqlite3_close(db);
+    char query[256];
+    sprintf(query, "SELECT value1, x, y FROM data WHERE data_key == %d;", key);
+    receive_sql receive = {0};
+    pthread_mutex_lock(&ddbb_mutex);
+    if (sqlite3_exec(database, query, recall_row_data, (void*)&receive, NULL) != SQLITE_OK)
+    {
+        fprintf(stderr, "ERROR executing query\n");
+        sqlite3_close(database);
+        pthread_mutex_unlock(&ddbb_mutex);
         return -1;
     }
-
-    const char *sql =
-        "SELECT EXISTS(SELECT 1 FROM data WHERE data_key = ?1);";
-    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        sqlite3_close(db);
-        return -1;
+    pthread_mutex_unlock(&ddbb_mutex);
+    if (receive.empty == 0)
+    {
+        return 0;
     }
-    sqlite3_bind_int(stmt, 1, key);
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        found = sqlite3_column_int(stmt, 0);
-    }
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-    return found;
+    return 1;
 }

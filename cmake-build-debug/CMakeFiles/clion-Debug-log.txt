@@ -1,5 +1,5 @@
 "C:\Program Files\JetBrains\CLion 2024.3.4\bin\cmake\win\x64\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_MAKE_PROGRAM=C:/Program Files/JetBrains/CLion 2024.3.4/bin/ninja/win/x64/ninja.exe" -G Ninja -S C:\Users\anaja\CLionProjects\Ejercicio1_SSDD -B C:\Users\anaja\CLionProjects\Ejercicio1_SSDD\cmake-build-debug
--- Configuring done (0.7s)
+-- Configuring done (1.0s)
 CMake Error at CMakeLists.txt:15 (add_executable):
   Cannot find source file:
 

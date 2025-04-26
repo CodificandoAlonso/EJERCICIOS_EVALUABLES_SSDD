@@ -6,6 +6,57 @@
 #include "treat_sql.h"
 #include "claves_rpc.h"
 
+#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include "claves.h"
+#include "claves_rpc.h"
+
+static void init_database(void) {
+    sqlite3 *db;
+    int rc;
+    char *errmsg = NULL;
+    const char *path = "/tmp/database.db";   /* coincide con el path que usa tu claves.c */
+
+    rc = sqlite3_open(path, &db);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Error abriendo DB %s: %s\n", path, sqlite3_errmsg(db));
+        sqlite3_close(db);
+        exit(1);
+    }
+
+    /* activar foreign keys (si alguna tabla tiene ON DELETE CASCADE) */
+    sqlite3_exec(db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+
+    /* crea las tablas si no existen */
+    sqlite3_exec(db,
+        "CREATE TABLE IF NOT EXISTS data ("
+          "data_key INTEGER PRIMARY KEY,"
+          "value1   TEXT NOT NULL,"
+          "x        INTEGER NOT NULL,"
+          "y        INTEGER NOT NULL"
+        ");"
+        "CREATE TABLE IF NOT EXISTS value2_all ("
+          "id           TEXT PRIMARY KEY,"
+          "data_key_fk  INTEGER NOT NULL,"
+          "value        REAL,"
+          "FOREIGN KEY(data_key_fk) REFERENCES data(data_key) ON DELETE CASCADE"
+        ");",
+        NULL, NULL, &errmsg);
+    if (errmsg) {
+        fprintf(stderr, "Error creando esquema: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        sqlite3_close(db);
+        exit(1);
+    }
+
+    sqlite3_close(db);
+}
+
+
 void claves_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 /* SET_VALUE */
@@ -116,6 +167,7 @@ destroy_service_1_svc(void *arg, struct svc_req *rq)
 int
 main(void)
 {
+    init_database();
     register SVCXPRT *transp;
 
     pmap_unset(CLAVES_PROG, CLAVES_VERS);
