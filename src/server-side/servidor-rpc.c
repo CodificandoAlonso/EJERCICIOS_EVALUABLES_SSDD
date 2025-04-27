@@ -13,17 +13,20 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "claves.h"
-#include "claves_rpc.h"
+
+
 
 static void init_database(void) {
     sqlite3 *db;
     int rc;
     char *errmsg = NULL;
-    const char *path = "/tmp/database.db";   /* coincide con el path que usa tu claves.c */
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
 
-    rc = sqlite3_open(path, &db);
+    rc = sqlite3_open(db_name, &db);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Error abriendo DB %s: %s\n", path, sqlite3_errmsg(db));
+        fprintf(stderr, "Error abriendo DB %s: %s\n", db_name, sqlite3_errmsg(db));
         sqlite3_close(db);
         exit(1);
     }
@@ -60,108 +63,99 @@ static void init_database(void) {
 void claves_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
 /* SET_VALUE */
-int *
-set_value_1_svc(entry *e, struct svc_req *rq)
+bool_t
+set_value_1_svc(entry *e, int *resultp, struct svc_req *rq)
 {
     (void)rq;
-    static int result;
     struct Coord c3;
     c3.x = e->value3.x;
     c3.y = e->value3.y;
-    result = set_value(
+    *resultp = set_value(
         e->key,
         e->value1,
         e->N_value2,
         e->V_value2.V_value2_val,
         c3
     );
-    return &result;
+    return TRUE;
 }
 
 /* GET_VALUE */
-GetRes *
-get_value_1_svc(int *keyp, struct svc_req *rq)
+bool_t
+get_value_1_svc(int *keyp, GetRes *resultp, struct svc_req *rq)
 {
     (void)rq;
-    static GetRes  result;
-    static char    buf1[256];
-    static double  buf2[32];
+    char *buf1 = malloc(256 * sizeof(char));
+    double *buf2 = malloc(sizeof(double) *32);
     static RpcCoord rc;
     int status;
 
     /* Llamamos a tu lógica y llenamos buf1, buf2 y rc */
-    status = get_value(*keyp, buf1, &result.N_value2, buf2, (struct Coord *)&rc);
+    status = get_value(*keyp, buf1, &resultp->N_value2, buf2, (struct Coord *)&rc);
 
     /* Montamos la respuesta estática */
-    result.status                    = status;
-    result.value1                    = buf1;                 // apunta a buf1
-    result.V_value2.V_value2_len     = result.N_value2;
-    result.V_value2.V_value2_val     = buf2;                 // apunta a buf2
-    result.value3.x                  = rc.x;
-    result.value3.y                  = rc.y;
-
-    return &result;
+    resultp->status                    = status;
+    resultp->value1                    = buf1;                 // apunta a buf1
+    resultp->V_value2.V_value2_len     = resultp->N_value2;
+    resultp->V_value2.V_value2_val     = buf2;                 // apunta a buf2
+    resultp->value3.x                  = rc.x;
+    resultp->value3.y                  = rc.y;
+    return TRUE;
 }
 
 
 /* DELETE_KEY */
-int *
-delete_key_1_svc(int *k, struct svc_req *rq)
+bool_t
+delete_key_1_svc(int *k, int *resultp, struct svc_req *rq)
 {
     (void)rq;
-    static int result;
-    result = delete_key(*k);
-    return &result;
+    *resultp = delete_key(*k);
+    return TRUE;
 }
 
 /* MODIFY_VALUE */
-int *
-modify_value_1_svc(entry *e, struct svc_req *rq)
+bool_t
+modify_value_1_svc(entry *e,int *resultp, struct svc_req *rq)
 {
     (void)rq;
-    static int res;
-    /* e->value3 es RpcCoord, same layout que struct Coord */
-    res = modify_value(
+    *resultp = modify_value(
         e->key,
         e->value1,
         e->N_value2,
         e->V_value2.V_value2_val,
         *(struct Coord *)&e->value3
     );
-    return &res;
+    return TRUE;
 }
 
 /* EXIST */
-int *
-exist_1_svc(int *k, struct svc_req *rq)
+bool_t
+exist_1_svc(int *k, int *resultp, struct svc_req *rq)
 {
     (void)rq;             /* evitamos “unused parameter” */
-    static int result;    /* vive en data, no en stack */
 
     /* llamamos a la función que comprueba la BBDD */
-    result = exist(*k);
+    *resultp = exist(*k);
 
-    return &result;
+    return TRUE;
 }
 
 /* INIT_SERVICE */
-int *
-init_service_1_svc(void *arg, struct svc_req *rq)
+bool_t
+init_service_1_svc(void *arg, int *resultp, struct svc_req *rq)
 {
     (void)arg; (void)rq;
-    static int result;
-    result = destroy();  /* reusa destroy() para limpiar */
-    return &result;
+    *resultp = destroy();  /* reusa destroy() para limpiar */
+    return TRUE;
 }
 
 /* DESTROY_SERVICE */
-int *
-destroy_service_1_svc(void *arg, struct svc_req *rq)
+bool_t
+destroy_service_1_svc(void *arg, int *resultp, struct svc_req *rq)
 {
     (void)arg; (void)rq;
-    static int result;
-    result = destroy();
-    return &result;
+    *resultp = destroy();
+    return TRUE;
 }
 
 int
@@ -172,14 +166,14 @@ main(void)
 
     pmap_unset(CLAVES_PROG, CLAVES_VERS);
 
-    transp = svcudp_create(RPC_ANYSOCK);
+    transp = svctcp_create(RPC_ANYSOCK, 0, 0);
     if (!transp) {
-        fprintf(stderr, "No puedo crear servicio UDP\n");
+        fprintf(stderr, "No puedo crear servicio TCP\n");
         exit(1);
     }
 
     if (!svc_register(transp, CLAVES_PROG, CLAVES_VERS,
-                      claves_prog_1, IPPROTO_UDP)) {
+                      claves_prog_1, IPPROTO_TCP)) {
         fprintf(stderr, "No puedo registrar CLAVES_PROG\n");
         exit(1);
     }

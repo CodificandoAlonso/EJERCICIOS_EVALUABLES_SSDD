@@ -1,1 +1,0 @@
-/usr/bin/cc "CMakeFiles/servidor.dir/src/server-side/servidor-rpc.c.o" "CMakeFiles/servidor.dir/src/server-side/claves.c.o" "CMakeFiles/servidor.dir/src/server-side/treat_sql.c.o" CMakeFiles/servidor.dir/src/common/socket_message.c.o -o servidor  -lsqlite3

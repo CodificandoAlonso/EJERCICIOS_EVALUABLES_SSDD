@@ -25,7 +25,10 @@ pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
 int destroy()
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -78,8 +81,10 @@ int destroy()
 int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
     sqlite3* database;
-    //sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -178,7 +183,10 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -200,6 +208,7 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     //controlador a modo de "flag" por si no se devuelve ninguna fila
     if (receive.empty == 0)
     {
+        *N_value2 = 0;
         sqlite3_close(database);
         return -1;
     }
@@ -216,6 +225,8 @@ int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coo
     pthread_mutex_unlock(&ddbb_mutex);
     if (receive.empty == 0)
     {
+        printf("tete %d\n", receive.N_values);
+        *N_value2 = 0;
         sqlite3_close(database);
         return 0; //Este caso seria en el que no hay elementos de value2, es decir, se ha insertado un vector vacio
         //No está mal, de ahi que se devuelva 0, simplemente no se realiza la copia
@@ -275,7 +286,10 @@ int modify_value(int key, char* value1, int N_value2, double* V_value2, struct C
 int delete_key(int key)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");
@@ -322,7 +336,10 @@ int delete_key(int key)
 int exist(int key)
 {
     sqlite3* database;
-    int create_database = sqlite3_open("/tmp/database.db", &database);
+    char *user = getlogin(); //PARA LA BASE DE DATOS
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
+    int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
     {
         fprintf(stderr, "Error opening the database\n");

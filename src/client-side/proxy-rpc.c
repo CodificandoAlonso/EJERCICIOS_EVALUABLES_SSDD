@@ -21,7 +21,7 @@ static void ensure_client(void) {
         exit(1);
     }
 
-    clnt = clnt_create(srv, CLAVES_PROG, CLAVES_VERS, "udp");
+    clnt = clnt_create(srv, CLAVES_PROG, CLAVES_VERS, "tcp");
     if (!clnt) {
         clnt_pcreateerror(srv);
         exit(1);
@@ -50,25 +50,28 @@ int set_value(int key, char *value1, int N_value2,
     e.value3.x = value3.x;
     e.value3.y = value3.y;
 
-    int *r = set_value_1(&e, clnt);
+    int r = 0;
+    bool_t ans = set_value_1(&e, &r, clnt);
     free(e.value1);
-    if (!r) {
+    printf("ANS %d\n    ", ans);
+    if (ans != 0) {
         clnt_perror(clnt, "Error RPC al insertar clave");
         return -1;
     }
-    if (*r == 0) {
+    if (r == 0) {
         printf("[SET] La clave %d ha sido insertada correctamente.\n", key);
     } else {
-        printf("[SET] Error al insertar la clave %d (código %d).\n", key, *r);
+        printf("[SET] Error al insertar la clave %d (código %d).\n", key, r);
     }
-    return *r;
+    return r;
 }
 
 int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coord *value3)
 {
     ensure_client();
-    GetRes *r = get_value_1(&key, clnt);
-    if (!r) {
+    GetRes *r;
+    bool_t ans = get_value_1(&key, r, clnt);
+    if (ans != 0) {
         clnt_perror(clnt, "Error RPC al obtener clave");
         return -1;
     }
@@ -79,46 +82,53 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
     }
     printf("[GET] Clave %d recuperada:\n", key);
     printf("      value1 = \"%s\"\n", r->value1);
+    memcpy(value1, r->value1, strlen(r->value1));
     printf("      N2     = %d\n", r->N_value2);
+    *N_value2 = r->N_value2;
     printf("      V2     = [");
-    for (int i = 0; i < r->N_value2; i++) {
+    memcpy(V_value2, r->V_value2.V_value2_val, sizeof(double) * (*N_value2));
+    for (int i = 0; i < *N_value2; i++) {
         printf("%s%g", i ? ", " : "", r->V_value2.V_value2_val[i]);
     }
     printf("]\n");
     printf("      coord  = (%d, %d)\n", r->value3.x, r->value3.y);
+    value3->x = r->value3.x;
+    value3->y = r->value3.y;
     return 0;
 }
 
 int exist(int key)
 {
     ensure_client();
-    int *r = exist_1(&key, clnt);
-    if (!r) {
+    int r;
+    bool_t ans = exist_1(&key, &r,clnt);
+    if (ans != 0) {
         clnt_perror(clnt, "Error RPC comprobando existencia");
         return -1;
     }
-    if (*r == 1) {
+    if (r == 1) {
         printf("[EXIST] La clave %d SÍ existe en la base de datos.\n", key);
     } else {
         printf("[EXIST] La clave %d NO existe en la base de datos.\n", key);
     }
-    return *r;
+    return r;
 }
 
 int delete_key(int key)
 {
     ensure_client();
-    int *r = delete_key_1(&key, clnt);
-    if (!r) {
+    int r ;
+    bool_t ans = delete_key_1(&key,&r, clnt);
+    if (ans != 0) {
         clnt_perror(clnt, "Error RPC al borrar clave");
         return -1;
     }
-    if (*r == 0) {
+    if (r == 0) {
         printf("[DELETE] La clave %d se ha borrado correctamente.\n", key);
     } else {
-        printf("[DELETE] No se pudo borrar la clave %d (código %d).\n", key, *r);
+        printf("[DELETE] No se pudo borrar la clave %d (código %d).\n", key, r);
     }
-    return *r;
+    return r;
 }
 
 int modify_value(int key,
@@ -137,18 +147,19 @@ int modify_value(int key,
     e.value3.x             = value3.x;
     e.value3.y             = value3.y;
 
-    int *r = modify_value_1(&e, clnt);
+    int r;
+    bool_t ans = modify_value_1(&e, &r, clnt);
     free(e.value1);
-    if (!r) {
+    if (ans != 0) {
         clnt_perror(clnt, "Error RPC al modificar clave");
         return -1;
     }
-    if (*r == 0) {
+    if (r == 0) {
         printf("[MODIFY] La clave %d se ha modificado correctamente.\n", key);
     } else {
-        printf("[MODIFY] Error al modificar la clave %d (código %d).\n", key, *r);
+        printf("[MODIFY] Error al modificar la clave %d (código %d).\n", key, r);
     }
-    return *r;
+    return r;
 }
 /* DESTROY_SERVICE wrapper con la firma exacta de claves.h */
 int destroy(void)
@@ -156,10 +167,11 @@ int destroy(void)
     ensure_client();
     /* RPC no toma argumentos para destroy */
     void *arg = NULL;
-    int *r = destroy_service_1(arg, clnt);
-    if (!r) {
+    int r ;
+    bool_t ans = destroy_service_1(arg, &r, clnt);
+    if (ans != 0) {
         clnt_perror(clnt, "RPC destroy");
         return -1;
     }
-    return *r;
+    return r;
 }

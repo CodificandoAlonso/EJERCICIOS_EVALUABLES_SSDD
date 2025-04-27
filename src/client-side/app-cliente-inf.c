@@ -171,9 +171,9 @@ int main() {
                 printf("Era un entero. Mi programa se muere\n");
                 return -1;
             }
-            char v1_obtenido[256];
+            char *v1_obtenido = malloc(256 * sizeof(char));
             int N_value2;
-            double v2_obtenido[32];
+            double *v2_obtenido = malloc(32 * sizeof(double));
             struct Coord v3_obtenido;
             printf("\n🔹 PRUEBA 2: Obtener tupla\n");
             if (get_value(key, v1_obtenido, &N_value2, v2_obtenido, &v3_obtenido) == 0) {
@@ -190,6 +190,8 @@ int main() {
             } else {
                 printf("❌ Error al obtener la tupla\n");
             }
+            free(v1_obtenido);
+            free(v2_obtenido);
         } else if (strcmp(buffer, "EXIST\n") == 0) //EXIST == 6
         {
             printf("Dime que key quieres ver si existe:\n");
