@@ -59,7 +59,7 @@ En este servicio, se podía elegir tanto realizar la comunicación según el pro
 
 El sistema por medio de RCP se realiza de la siguiente forma. El cliente realiza la solicitud de servicio, el proxy rpc, llama a la función dada por el stub del cliente asociada al servicio. El stub del cliente realiza el serializado necesario para el envío de datos y envia la peticion al servidor rpc. El servidor rpc deserializa la petición y se la pasa al servidor local, que es el que realiza la llamada al servicio otorgado en claves.c. Posteriormente a eso, se realiza el procedimiento inverso, llegando la respuesta del servicio de vuelta al cliente. A continuación se muestra el diagrama.
 ### <a name="_page3_x72.00_y257.84"></a>**Diagrama de comunicación**
-![](Aspose.Words.93aaa60d-1692-44e3-aa5c-c855e21ed4a3.003.jpeg)
+![](./doc/diagrama.jpeg)
 ## <a name="_page3_x72.00_y553.16"></a>*Servidor*
 El servidor ha sufrido bastante cambio con respecto al desarrollado en los ejercicios evaluables anteriores, ya que todo el sistema de gestión concurrente viene otorgado por el sistema de RPC, y la gestión de ejecuciones de cada hilo. El sistema se ha reducido únicamente a implementar las funciones dadas por RPC, que tienen la forma de extensión “nombre\_servicio”\_1\_svc . En estas funciones se realizan las llamadas pertinentes a las funciones originales otorgadas por el archivo claves.h.
 ## <a name="_page3_x72.00_y678.28"></a>*Cliente*
