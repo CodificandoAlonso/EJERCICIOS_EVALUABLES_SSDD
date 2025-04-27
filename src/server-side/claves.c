@@ -1,6 +1,7 @@
 #include "claves.h"
 
 #include <pthread.h>
+#include <pwd.h>
 #include<stdio.h>
 #include<sqlite3.h>
 #include <stdlib.h>
@@ -9,6 +10,12 @@
 #include <unistd.h>
 
 #include "treat_sql.h"
+
+char *get_username_db() {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw) return pw->pw_name;
+    return "default";  // fallback si no encuentra usuario
+}
 
 
 pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -25,8 +32,8 @@ pthread_mutex_t ddbb_mutex = PTHREAD_MUTEX_INITIALIZER;
 int destroy()
 {
     sqlite3* database;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username_db();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
@@ -81,8 +88,8 @@ int destroy()
 int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coord value3)
 {
     sqlite3* database;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username_db();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
@@ -183,8 +190,8 @@ int set_value(int key, char* value1, int N_value2, double* V_value2, struct Coor
 int get_value(int key, char* value1, int* N_value2, double* V_value2, struct Coord* value3)
 {
     sqlite3* database;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username_db();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
@@ -286,8 +293,8 @@ int modify_value(int key, char* value1, int N_value2, double* V_value2, struct C
 int delete_key(int key)
 {
     sqlite3* database;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username_db();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)
@@ -336,8 +343,8 @@ int delete_key(int key)
 int exist(int key)
 {
     sqlite3* database;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username_db();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
     int create_database = sqlite3_open(db_name, &database);
     if (create_database != SQLITE_OK)

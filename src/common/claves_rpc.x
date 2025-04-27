@@ -31,4 +31,4 @@ program CLAVES_PROG {
         int     INIT_SERVICE(void)    = 6;
         int     DESTROY_SERVICE(void) = 7;
     } = 1;
-} = 0x31234567;
+} = 100475053;

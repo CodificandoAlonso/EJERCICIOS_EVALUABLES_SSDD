@@ -5,7 +5,7 @@
 #include "claves.h"
 #include "treat_sql.h"
 #include "claves_rpc.h"
-
+#include <pwd.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,12 +16,19 @@
 
 
 
+char *get_username() {
+    struct passwd *pw = getpwuid(getuid());
+    if (pw) return pw->pw_name;
+    return "default";
+}
+
+
 static void init_database(void) {
     sqlite3 *db;
     int rc;
     char *errmsg = NULL;
-    char *user = getlogin(); //PARA LA BASE DE DATOS
     char db_name[256];
+    char *user = get_username();
     snprintf(db_name, sizeof(db_name), "/tmp/database-%s.db", user);
 
     rc = sqlite3_open(db_name, &db);

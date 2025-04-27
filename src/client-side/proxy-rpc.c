@@ -71,7 +71,7 @@ int get_value(int key, char *value1, int *N_value2, double *V_value2, struct Coo
     ensure_client();
     GetRes *r;
     bool_t ans = get_value_1(&key, r, clnt);
-    if (ans != 0) {
+    if (ans != RPC_SUCCESS) {
         clnt_perror(clnt, "Error RPC al obtener clave");
         return -1;
     }
@@ -102,7 +102,7 @@ int exist(int key)
     ensure_client();
     int r;
     bool_t ans = exist_1(&key, &r,clnt);
-    if (ans != 0) {
+    if (ans != RPC_SUCCESS) {
         clnt_perror(clnt, "Error RPC comprobando existencia");
         return -1;
     }
@@ -119,7 +119,7 @@ int delete_key(int key)
     ensure_client();
     int r ;
     bool_t ans = delete_key_1(&key,&r, clnt);
-    if (ans != 0) {
+    if (ans != RPC_SUCCESS) {
         clnt_perror(clnt, "Error RPC al borrar clave");
         return -1;
     }
@@ -150,7 +150,7 @@ int modify_value(int key,
     int r;
     bool_t ans = modify_value_1(&e, &r, clnt);
     free(e.value1);
-    if (ans != 0) {
+    if (ans != RPC_SUCCESS) {
         clnt_perror(clnt, "Error RPC al modificar clave");
         return -1;
     }
@@ -169,7 +169,7 @@ int destroy(void)
     void *arg = NULL;
     int r ;
     bool_t ans = destroy_service_1(arg, &r, clnt);
-    if (ans != 0) {
+    if (ans != RPC_SUCCESS) {
         clnt_perror(clnt, "RPC destroy");
         return -1;
     }
